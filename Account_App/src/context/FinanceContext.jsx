@@ -108,6 +108,12 @@ export const FinanceProvider = ({ children }) => {
         setAllTransactions(prev => prev.filter(t => t.id !== id));
     };
 
+    const updateTransaction = (id, updatedFields) => {
+        setAllTransactions(prev => prev.map(t =>
+            t.id === id ? { ...t, ...updatedFields, amount: parseFloat(updatedFields.amount) } : t
+        ));
+    };
+
     // Actions: Recurring
     const addRecurringTransaction = (item) => {
         if (!user) return;
@@ -313,6 +319,7 @@ export const FinanceProvider = ({ children }) => {
             transactions,
             addTransaction,
             deleteTransaction,
+            updateTransaction,
             recurringTransactions,
             addRecurringTransaction,
             deleteRecurringTransaction,
