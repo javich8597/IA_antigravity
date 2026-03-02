@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
-import { User, Target, TrendingUp, PlusCircle, Trash2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { User, Target, TrendingUp, PlusCircle, Trash2, ShieldCheck, AlertTriangle, Smile, Meh, Frown } from 'lucide-react';
 import { getCategoryConfig } from '../utils/categoryIcons';
 
 export default function Profile() {
@@ -234,11 +234,54 @@ export default function Profile() {
                                     }
                                 }
 
+                                // V12: Financial Zone Calculation
+                                let zone = 'green';
+                                let ZoneIcon = Smile;
+                                let zoneColor = 'var(--success)';
+                                let requiredSavings = 0;
+
+                                if (goal.deadline) {
+                                    const deadlineDate = new Date(goal.deadline);
+                                    const now = new Date();
+                                    let monthsLeft = (deadlineDate.getFullYear() - now.getFullYear()) * 12 + (deadlineDate.getMonth() - now.getMonth());
+                                    // Treat anything past due or due this month as 1 month remaining to avoid division by zero or infinite
+                                    if (monthsLeft < 1) monthsLeft = 1;
+                                    requiredSavings = remainingAmount / monthsLeft;
+                                } else {
+                                    // If no deadline, the user's required savings is whatever they are currently pacing at, so they remain 'green' by default.
+                                    requiredSavings = remainingAmount > 0 && typeof baseMonthsLeft === 'number' ? (remainingAmount / baseMonthsLeft) : 0;
+                                }
+
+                                if (remainingAmount === 0 || requiredSavings === 0) {
+                                    zone = 'green';
+                                    ZoneIcon = Smile;
+                                    zoneColor = 'var(--success)';
+                                } else if (baseMonthlySavings >= requiredSavings) {
+                                    zone = 'green';
+                                    ZoneIcon = Smile;
+                                    zoneColor = 'var(--success)';
+                                } else if (baseMonthlySavings >= requiredSavings * 0.9) {
+                                    zone = 'yellow';
+                                    ZoneIcon = Meh;
+                                    zoneColor = 'var(--warning)';
+                                } else {
+                                    zone = 'red';
+                                    ZoneIcon = Frown;
+                                    zoneColor = 'var(--danger)';
+                                }
+
                                 return (
                                     <div key={goal.id} style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--card-border)', borderRadius: '8px' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                                             <div>
-                                                <h4 style={{ margin: '0 0 0.25rem 0', fontWeight: 600 }}>{goal.name}</h4>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.25rem' }}>
+                                                    <h4 style={{ margin: 0, fontWeight: 600 }}>{goal.name}</h4>
+                                                    {!isComplete && (
+                                                        <div title={`Required Savings: ${formatCurrency(requiredSavings)}/mo. Actual: ${formatCurrency(baseMonthlySavings)}/mo`} style={{ display: 'flex', alignItems: 'center' }}>
+                                                            <ZoneIcon size={20} color={zoneColor} />
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                                     {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
                                                     {goal.deadline && ` • Target Date: ${goal.deadline}`}

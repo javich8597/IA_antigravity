@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 
 export default function SettingsModal({ isOpen, onClose }) {
@@ -6,19 +7,21 @@ export default function SettingsModal({ isOpen, onClose }) {
 
     if (!isOpen) return null;
 
-    return (
-        <div className="modal-overlay" style={overlayStyle}>
-            <div className="modal-content glass-panel animate-fade-in" style={contentStyle}>
-                <div className="modal-header" style={headerStyle}>
-                    <h2>{t('appSettings')}</h2>
+    // React Portal: Renders the modal directly into document.body,
+    // completely escaping the <nav> stacking context that was causing the z-index overlap.
+    return createPortal(
+        <div style={overlayStyle} onClick={onClose}>
+            <div style={contentStyle} className="glass-panel animate-fade-in" onClick={e => e.stopPropagation()}>
+                <div style={headerStyle}>
+                    <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>{t('appSettings')}</h2>
                     <button onClick={onClose} style={closeBtnStyle}>
                         <X size={24} />
                     </button>
                 </div>
 
-                <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1.5rem' }}>
 
-                    <div className="form-group">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
                         <label>{t('language')}</label>
                         <select
                             className="form-input"
@@ -30,7 +33,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                         </select>
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
                         <label>{t('currency')}</label>
                         <select
                             className="form-input"
@@ -46,32 +49,32 @@ export default function SettingsModal({ isOpen, onClose }) {
 
                 </div>
 
-                <div className="modal-footer" style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={onClose} className="submit-btn btn-success" style={{ width: 'auto', padding: '0.5rem 1.5rem' }}>
                         {t('close')}
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 
-// Inline styles for Modal structure (to keep it isolated and simple)
 const overlayStyle = {
     position: 'fixed',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 1000,
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    zIndex: 9999,
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
 };
 
 const contentStyle = {
     width: '90%',
     maxWidth: '450px',
     padding: '2rem',
-    position: 'relative'
+    position: 'relative',
 };
 
 const headerStyle = {
@@ -79,12 +82,14 @@ const headerStyle = {
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottom: '1px solid var(--card-border)',
-    paddingBottom: '1rem'
+    paddingBottom: '1rem',
 };
 
 const closeBtnStyle = {
     background: 'transparent',
     border: 'none',
     color: 'var(--text-muted)',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
 };
