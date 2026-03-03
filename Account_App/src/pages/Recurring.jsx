@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { PlusCircle, Trash2, Repeat } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
-import { CATEGORIES, CATEGORY_KEYS } from '../utils/categoryIcons';
+import { CATEGORIES, CATEGORY_KEYS, CATEGORY_HIERARCHY } from '../utils/categoryIcons';
+import { predictCategory } from '../utils/smartCategorizer';
 import CustomSelect from '../components/CustomSelect';
 import CustomDatePicker from '../components/CustomDatePicker';
 
@@ -22,15 +23,43 @@ export default function Recurring() {
         frequency: 'monthly',
         type: 'expense',
         category: CATEGORIES[0],
+        subcategory: CATEGORY_HIERARCHY[CATEGORIES[0]][0],
         startDate: new Date().toISOString().split('T')[0]
     });
+
+    const handleDescriptionChange = (e) => {
+        const val = e.target.value;
+        const auto = predictCategory(val);
+
+        let updates = { description: val };
+        if (auto) {
+            updates.category = auto.category;
+            updates.subcategory = auto.subcategory;
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            ...updates
+        }));
+    };
+
+    const handleCategoryChange = (cat) => {
+        setFormData({
+            ...formData,
+            category: cat,
+            subcategory: CATEGORY_HIERARCHY[cat][0]
+        });
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!formData.description || !formData.amount || !formData.startDate) return;
 
+        const finalCategory = `${formData.category} - ${formData.subcategory}`;
+
         addRecurringTransaction({
             ...formData,
+            category: finalCategory,
             amount: parseFloat(formData.amount)
         });
         setFormData({
@@ -39,6 +68,7 @@ export default function Recurring() {
             frequency: 'monthly',
             type: 'expense',
             category: CATEGORIES[0],
+            subcategory: CATEGORY_HIERARCHY[CATEGORIES[0]][0],
             startDate: new Date().toISOString().split('T')[0]
         });
     };
@@ -66,7 +96,7 @@ export default function Recurring() {
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                                     className="sr-only"
                                 />
-                                Fixed Expense
+                                {t('fixedExpense')}
                             </label>
                             <label className={`type-btn ${formData.type === 'income' ? 'active-income' : ''}`}>
                                 <input
@@ -77,7 +107,7 @@ export default function Recurring() {
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                                     className="sr-only"
                                 />
-                                Fixed Income
+                                {t('fixedIncome')}
                             </label>
                         </div>
 
@@ -87,14 +117,14 @@ export default function Recurring() {
                                 type="text"
                                 placeholder={t('descriptionPlaceholder')}
                                 value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                onChange={handleDescriptionChange}
                                 required
                                 className="form-input"
                             />
                         </div>
 
                         <div className="form-group">
-                            <label>Start Date</label>
+                            <label>{t('date')} (Start Date)</label>
                             <input
                                 type="date"
                                 className="form-input"
@@ -139,8 +169,17 @@ export default function Recurring() {
                             <label>{t('category')}</label>
                             <CustomSelect
                                 value={formData.category}
-                                onChange={(val) => setFormData({ ...formData, category: val })}
+                                onChange={handleCategoryChange}
                                 options={CATEGORIES.map(cat => ({ value: cat, label: t(CATEGORY_KEYS[cat]) }))}
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label>{t('subcategory')}</label>
+                            <CustomSelect
+                                value={formData.subcategory}
+                                onChange={(val) => setFormData({ ...formData, subcategory: val })}
+                                options={CATEGORY_HIERARCHY[formData.category].map(sub => ({ value: sub, label: sub }))}
                             />
                         </div>
 

@@ -250,24 +250,36 @@ export const FinanceProvider = ({ children }) => {
 
     // ── Derived / Filter helpers ────────────────────────────────────────────
     const getFilteredTransactions = (filter = 'all') => {
-        if (filter === 'all') return transactions;
+        let filtered = [...transactions];
         const now = new Date();
-        return transactions.filter(t => {
-            if (!t.date) return false;
-            const d = new Date(t.date);
-            if (filter === 'daily') return d.toDateString() === now.toDateString();
-            if (filter === 'monthly') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            if (filter === 'yearly') return d.getFullYear() === now.getFullYear();
-            return true;
+
+        if (filter !== 'all') {
+            filtered = transactions.filter(t => {
+                if (!t.date) return false;
+                const d = new Date(t.date);
+                if (filter === 'daily') return d.toDateString() === now.toDateString();
+                if (filter === 'monthly') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                if (filter === 'yearly') return d.getFullYear() === now.getFullYear();
+                return true;
+            });
+        }
+
+        // Sort by the user's explicit transaction date descending, fallback to created_at
+        return filtered.sort((a, b) => {
+            const dateA = new Date(a.date || a.created_at);
+            const dateB = new Date(b.date || b.created_at);
+            return dateB - dateA;
         });
     };
 
     const getAllCombinedTransactions = (filter = 'all') => {
         const regular = getFilteredTransactions(filter);
         const recurring = recurringTransactions.map(r => ({ ...r, isRecurring: true }));
-        return [...regular, ...recurring].sort((a, b) =>
-            new Date(b.created_at) - new Date(a.created_at)
-        );
+        return [...regular, ...recurring].sort((a, b) => {
+            const dateA = new Date(a.date || a.start_date || a.created_at);
+            const dateB = new Date(b.date || b.start_date || b.created_at);
+            return dateB - dateA;
+        });
     };
 
     const calculateTotals = () => {

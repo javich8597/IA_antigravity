@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useFinance } from '../context/FinanceContext';
 import { PieChart as ChartIcon, AlertCircle, BarChart2 } from 'lucide-react';
-import { getCategoryConfig } from '../utils/categoryIcons';
+import { getCategoryConfig, CATEGORY_KEYS } from '../utils/categoryIcons';
 
 export default function Analytics() {
     const { transactions, recurringTransactions, currencySymbol, formatCurrency, t } = useFinance();
@@ -15,13 +15,14 @@ export default function Analytics() {
     ];
 
     const categoryData = allExpenses.reduce((acc, curr) => {
-        const existing = acc.find(item => item.name === curr.category);
+        const rootCategory = curr.category ? curr.category.split(' - ')[0] : 'General';
+        const existing = acc.find(item => item.name === rootCategory);
         const amountNum = parseFloat(curr.amount) || 0;
 
         if (existing) {
             existing.value += amountNum;
         } else {
-            acc.push({ name: curr.category, value: amountNum });
+            acc.push({ name: rootCategory, value: amountNum });
         }
         return acc;
     }, []);
@@ -30,7 +31,10 @@ export default function Analytics() {
     categoryData.sort((a, b) => b.value - a.value);
 
     // Filter out categories with 0 value
-    const finalCategoryData = categoryData.filter(d => d.value > 0);
+    const finalCategoryData = categoryData.filter(d => d.value > 0).map(d => ({
+        ...d,
+        displayName: CATEGORY_KEYS[d.name] ? t(CATEGORY_KEYS[d.name]) : d.name
+    }));
 
     const { totalIncome, totalExpenses } = useFinance().calculateTotals();
     const comparisonData = [
@@ -44,7 +48,7 @@ export default function Analytics() {
         if (active && payload && payload.length) {
             return (
                 <div className="custom-tooltip glass-panel" style={{ padding: '10px', border: '1px solid var(--card-border)' }}>
-                    <p className="label" style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>{label || payload[0].name}</p>
+                    <p className="label" style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>{label || (CATEGORY_KEYS[payload[0].name] ? t(CATEGORY_KEYS[payload[0].name]) : payload[0].name)}</p>
                     <p className="desc" style={{ color: payload[0].payload?.fill || payload[0].color }}>
                         {formatCurrency(payload[0].value)}
                     </p>
@@ -104,6 +108,7 @@ export default function Analytics() {
                                             outerRadius={140}
                                             paddingAngle={5}
                                             dataKey="value"
+                                            nameKey="displayName"
                                             stroke="none"
                                         >
                                             {finalCategoryData.map((entry, index) => (
@@ -147,7 +152,7 @@ export default function Analytics() {
                                                     <CatIcon size={20} />
                                                 </div>
                                                 <div className="t-details">
-                                                    <h4 className="t-description" style={{ marginBottom: 0 }}>{t(item.name)}</h4>
+                                                    <h4 className="t-description" style={{ marginBottom: 0 }}>{t(CATEGORY_KEYS[item.name])}</h4>
                                                     <p className="t-meta">{percentage}% of total expenses</p>
                                                 </div>
                                             </div>

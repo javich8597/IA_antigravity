@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { PlusCircle } from 'lucide-react';
-import { CATEGORIES, CATEGORY_KEYS } from '../utils/categoryIcons';
+import { CATEGORIES, CATEGORY_KEYS, CATEGORY_HIERARCHY } from '../utils/categoryIcons';
+import { predictCategory } from '../utils/smartCategorizer';
 import CustomSelect from './CustomSelect';
 import CustomDatePicker from './CustomDatePicker';
 
@@ -12,15 +13,36 @@ export default function TransactionForm() {
         amount: '',
         type: 'expense',
         category: CATEGORIES[0],
+        subcategory: CATEGORY_HIERARCHY[CATEGORIES[0]][0],
         date: new Date().toISOString().split('T')[0]
     });
+
+    const handleDescriptionChange = (e) => {
+        const val = e.target.value;
+        const auto = predictCategory(val);
+
+        let updates = { description: val };
+        if (auto) {
+            updates.category = auto.category;
+            updates.subcategory = auto.subcategory;
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            ...updates
+        }));
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!formData.description || !formData.amount) return;
 
+        // Store as "MainCategory - SubCategory"
+        const finalCategory = `${formData.category} - ${formData.subcategory}`;
+
         addTransaction({
             ...formData,
+            category: finalCategory,
             amount: parseFloat(formData.amount)
         });
 
@@ -29,7 +51,16 @@ export default function TransactionForm() {
             amount: '',
             type: 'expense',
             category: CATEGORIES[0],
+            subcategory: CATEGORY_HIERARCHY[CATEGORIES[0]][0],
             date: new Date().toISOString().split('T')[0]
+        });
+    };
+
+    const handleCategoryChange = (cat) => {
+        setFormData({
+            ...formData,
+            category: cat,
+            subcategory: CATEGORY_HIERARCHY[cat][0] // Reset subcategory when main changes
         });
     };
 
@@ -68,7 +99,7 @@ export default function TransactionForm() {
                         type="text"
                         placeholder={t('descriptionPlaceholder')}
                         value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        onChange={handleDescriptionChange}
                         required
                         className="form-input"
                     />
@@ -94,8 +125,17 @@ export default function TransactionForm() {
                     <label>{t('category')}</label>
                     <CustomSelect
                         value={formData.category}
-                        onChange={(val) => setFormData({ ...formData, category: val })}
+                        onChange={handleCategoryChange}
                         options={CATEGORIES.map(cat => ({ value: cat, label: t(CATEGORY_KEYS[cat]) }))}
+                    />
+                </div>
+
+                <div className="form-group">
+                    <label>{t('subcategory')}</label>
+                    <CustomSelect
+                        value={formData.subcategory}
+                        onChange={(val) => setFormData({ ...formData, subcategory: val })}
+                        options={CATEGORY_HIERARCHY[formData.category].map(sub => ({ value: sub, label: sub }))}
                     />
                 </div>
 

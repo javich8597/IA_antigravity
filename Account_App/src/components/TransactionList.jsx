@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Trash2, Calendar, Repeat, Pencil, Check, X } from 'lucide-react';
-import { getCategoryConfig, CATEGORY_KEYS, CATEGORIES } from '../utils/categoryIcons';
+import { getCategoryConfig, CATEGORY_KEYS, CATEGORIES, CATEGORY_HIERARCHY } from '../utils/categoryIcons';
 
 export default function TransactionList({ combined = false, title }) {
     const {
@@ -38,10 +38,12 @@ export default function TransactionList({ combined = false, title }) {
 
     const startEdit = (txn) => {
         setEditingId(txn.id);
+        const parts = txn.category ? txn.category.split(' - ') : [CATEGORIES[0]];
         setEditData({
             description: txn.description,
             amount: txn.amount,
-            category: txn.category,
+            category: parts[0],
+            subcategory: parts[1] || CATEGORY_HIERARCHY[parts[0]][0] || '',
             date: txn.date || ''
         });
     };
@@ -52,9 +54,23 @@ export default function TransactionList({ combined = false, title }) {
     };
 
     const saveEdit = (id) => {
-        updateTransaction(id, editData);
+        const payload = { ...editData };
+        payload.category = payload.subcategory ? `${payload.category} - ${payload.subcategory}` : payload.category;
+        delete payload.subcategory;
+
+        updateTransaction(id, payload);
         setEditingId(null);
         setEditData({});
+    };
+
+    const formatCategory = (catString) => {
+        if (!catString) return '';
+        const parts = catString.split(' - ');
+        const main = t(CATEGORY_KEYS[parts[0]]) || parts[0];
+        if (parts[1]) {
+            return `${main} › ${parts[1]}`;
+        }
+        return main;
     };
 
     return (
@@ -107,18 +123,33 @@ export default function TransactionList({ combined = false, title }) {
                                                     onChange={e => setEditData({ ...editData, amount: e.target.value })}
                                                 />
                                             </div>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label style={{ fontSize: '0.75rem' }}>Category</label>
-                                                <select
-                                                    className="form-input"
-                                                    style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)', width: '100%', appearance: 'auto' }}
-                                                    value={editData.category}
-                                                    onChange={e => setEditData({ ...editData, category: e.target.value })}
-                                                >
-                                                    {CATEGORIES.map(cat => (
-                                                        <option key={cat} value={cat}>{t(CATEGORY_KEYS[cat])}</option>
-                                                    ))}
-                                                </select>
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                                                    <label style={{ fontSize: '0.75rem' }}>Category</label>
+                                                    <select
+                                                        className="form-input"
+                                                        style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)', width: '100%', appearance: 'auto' }}
+                                                        value={editData.category}
+                                                        onChange={e => setEditData({ ...editData, category: e.target.value, subcategory: CATEGORY_HIERARCHY[e.target.value][0] })}
+                                                    >
+                                                        {CATEGORIES.map(cat => (
+                                                            <option key={cat} value={cat}>{t(CATEGORY_KEYS[cat])}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                                                    <label style={{ fontSize: '0.75rem' }}>Subcategory</label>
+                                                    <select
+                                                        className="form-input"
+                                                        style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)', width: '100%', appearance: 'auto' }}
+                                                        value={editData.subcategory}
+                                                        onChange={e => setEditData({ ...editData, subcategory: e.target.value })}
+                                                    >
+                                                        {(CATEGORY_HIERARCHY[editData.category] || []).map(sub => (
+                                                            <option key={sub} value={sub}>{sub}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             </div>
                                             <div className="form-group" style={{ marginBottom: 0 }}>
                                                 <label style={{ fontSize: '0.75rem' }}>Date</label>
@@ -168,7 +199,7 @@ export default function TransactionList({ combined = false, title }) {
                                                     )}
                                                 </h4>
                                                 <p className="t-meta">
-                                                    {t(CATEGORY_KEYS[txn.category] || txn.category)}
+                                                    {formatCategory(txn.category)}
                                                     {txn.date ? ` • ${formatDate(txn.date)}` : ''}
                                                 </p>
                                             </div>
