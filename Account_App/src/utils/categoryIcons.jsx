@@ -21,6 +21,21 @@ export const CATEGORIES = [
     'General'
 ];
 
+// Maps each English category value → its translation key.
+// This lets forms display a translated label while storing the English value
+// so getCategoryConfig() still matches the right icon.
+export const CATEGORY_KEYS = {
+    'Housing': 'cat_Housing',
+    'Utilities': 'cat_Utilities',
+    'Food & Groceries': 'cat_Food',
+    'Transportation & Travel': 'cat_Transportation',
+    'Entertainment': 'cat_Entertainment',
+    'Healthcare': 'cat_Healthcare',
+    'Salary / Income': 'cat_Salary',
+    'General': 'cat_General'
+};
+
+
 export const getCategoryConfig = (category) => {
     switch (category) {
         case 'Housing':

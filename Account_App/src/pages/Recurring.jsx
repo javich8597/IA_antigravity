@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { PlusCircle, Trash2, Repeat } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
-import { CATEGORIES } from '../utils/categoryIcons';
+import { CATEGORIES, CATEGORY_KEYS } from '../utils/categoryIcons';
+import CustomSelect from '../components/CustomSelect';
+import CustomDatePicker from '../components/CustomDatePicker';
 
 export default function Recurring() {
     const {
@@ -107,30 +109,26 @@ export default function Recurring() {
 
                         <div className="form-group">
                             <label>{t('frequency')}</label>
-                            <select
-                                className="form-input"
+                            <CustomSelect
                                 value={formData.frequency}
-                                onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
-                            >
-                                <option value="weekly">{t('weekly')}</option>
-                                <option value="monthly">{t('monthly_freq')}</option>
-                                <option value="quarterly">{t('quarterly')}</option>
-                                <option value="biannually">{t('biannually')}</option>
-                                <option value="annually">{t('annually')}</option>
-                            </select>
+                                onChange={(val) => setFormData({ ...formData, frequency: val })}
+                                options={[
+                                    { value: 'weekly', label: t('weekly') },
+                                    { value: 'monthly', label: t('monthly_freq') },
+                                    { value: 'quarterly', label: t('quarterly') },
+                                    { value: 'biannually', label: t('biannually') },
+                                    { value: 'annually', label: t('annually') }
+                                ]}
+                            />
                         </div>
 
                         <div className="form-group">
                             <label>{t('category')}</label>
-                            <select
-                                className="form-input"
+                            <CustomSelect
                                 value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                            >
-                                {CATEGORIES.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
+                                onChange={(val) => setFormData({ ...formData, category: val })}
+                                options={CATEGORIES.map(cat => ({ value: cat, label: t(CATEGORY_KEYS[cat]) }))}
+                            />
                         </div>
 
                         <button type="submit" className={`submit-btn ${formData.type === 'income' ? 'btn-success' : 'btn-danger'}`}>
@@ -150,24 +148,28 @@ export default function Recurring() {
                         ) : (
                             recurringTransactions.map(t => (
                                 <div key={t.id} className="transaction-item">
-                                    <div className="t-info">
+                                    {/* Left side: text block */}
+                                    <div className="t-left">
                                         <div className="t-details">
-                                            <h4>{t.description}</h4>
-                                            <p>{t.category}</p>
+                                            <h4 className="t-description" style={{ marginBottom: 0 }}>{t.description}</h4>
+                                            <p className="t-meta">{t.category}</p>
                                         </div>
                                     </div>
 
-                                    <div className="t-actions">
-                                        <span className={`t-amount ${t.type}`}>
-                                            {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                                            <span className="monthly-label">{getFrequencyLabel(t.frequency)}</span>
-                                        </span>
+                                    {/* Centre-right: amount */}
+                                    <span className={`t-amount ${t.type}`}>
+                                        {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                                        <span className="monthly-label" style={{ fontSize: '0.7em', marginLeft: '4px', opacity: 0.7 }}>{getFrequencyLabel(t.frequency)}</span>
+                                    </span>
+
+                                    {/* Far right: delete button */}
+                                    <div className="t-buttons">
                                         <button
                                             onClick={() => deleteRecurringTransaction(t.id)}
                                             className="delete-btn"
                                             aria-label="Delete recurring item"
                                         >
-                                            <Trash2 size={18} />
+                                            <Trash2 size={13} />
                                         </button>
                                     </div>
                                 </div>

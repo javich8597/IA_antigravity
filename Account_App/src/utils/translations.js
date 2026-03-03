@@ -13,6 +13,7 @@ export const translations = {
         income: "Income",
         expenses: "Expenses",
         recentTransactions: "Recent Transactions",
+        totalTransactions: "Total Transactions",
         activeRecurring: "Active Recurring",
         noTransactionsFound: "No transactions found for this period.",
         noRecurringFound: "No recurring items configured yet.",
@@ -57,7 +58,17 @@ export const translations = {
         preferences: "Preferences",
         language: "Language",
         currency: "Currency",
-        close: "Close"
+        close: "Close",
+
+        // Categories
+        cat_Housing: "Housing",
+        cat_Utilities: "Utilities",
+        cat_Food: "Food & Groceries",
+        cat_Transportation: "Transportation & Travel",
+        cat_Entertainment: "Entertainment",
+        cat_Healthcare: "Healthcare",
+        cat_Salary: "Salary / Income",
+        cat_General: "General"
     },
     es: {
         // Navbar & Navigation
@@ -73,6 +84,7 @@ export const translations = {
         income: "Ingresos",
         expenses: "Gastos",
         recentTransactions: "Transacciones Recientes",
+        totalTransactions: "Total de Transacciones",
         activeRecurring: "Cobros Recurrentes",
         noTransactionsFound: "No se encontraron transacciones en este periodo.",
         noRecurringFound: "No hay elementos recurrentes configurados aún.",
@@ -117,6 +129,16 @@ export const translations = {
         preferences: "Preferencias",
         language: "Idioma",
         currency: "Moneda",
-        close: "Cerrar"
+        close: "Cerrar",
+
+        // Categories
+        cat_Housing: "Vivienda",
+        cat_Utilities: "Suministros",
+        cat_Food: "Alimentación",
+        cat_Transportation: "Transporte y Viajes",
+        cat_Entertainment: "Entretenimiento",
+        cat_Healthcare: "Salud",
+        cat_Salary: "Nómina / Ingresos",
+        cat_General: "General"
     }
 };

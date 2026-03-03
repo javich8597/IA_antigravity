@@ -1,318 +1,264 @@
 import { createContext, useState, useEffect, useContext } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../lib/supabaseClient';
 import { useAuth } from './AuthContext';
 import { translations } from '../utils/translations';
 
 const FinanceContext = createContext();
-
 export const useFinance = () => useContext(FinanceContext);
 
 export const FinanceProvider = ({ children }) => {
     const { user } = useAuth();
 
-    // Standard Transactions
-    const [allTransactions, setAllTransactions] = useState(() => {
-        const saved = localStorage.getItem('finance_app_transactions');
-        if (saved) {
-            try {
-                return JSON.parse(saved);
-            } catch (e) {
-                return [];
-            }
+    // ── State ──────────────────────────────────────────────────────────────
+    const [transactions, setTransactions] = useState([]);
+    const [recurringTransactions, setRecurringTransactions] = useState([]);
+    const [goals, setGoals] = useState([]);
+    const [currency, setCurrencyState] = useState('EUR');
+    const [language, setLanguageState] = useState('en');
+    const [loading, setLoading] = useState(false);
+
+    // ── Fetch all data when user changes ────────────────────────────────────
+    useEffect(() => {
+        if (!user) {
+            setTransactions([]);
+            setRecurringTransactions([]);
+            setGoals([]);
+            return;
         }
-        return [];
-    });
+        fetchAll();
+    }, [user?.id]);
 
-    // Recurring Transactions (V3)
-    const [allRecurring, setAllRecurring] = useState(() => {
-        const saved = localStorage.getItem('finance_app_recurring');
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { return []; }
+    const fetchAll = async () => {
+        setLoading(true);
+        const [txRes, recRes, goalRes, settingsRes] = await Promise.all([
+            supabase.from('transactions').select('*').order('created_at', { ascending: false }),
+            supabase.from('recurring_transactions').select('*').order('created_at', { ascending: false }),
+            supabase.from('goals').select('*').order('created_at', { ascending: false }),
+            supabase.from('user_settings').select('*').maybeSingle()
+        ]);
+
+        if (!txRes.error) setTransactions(txRes.data || []);
+        if (!recRes.error) setRecurringTransactions(recRes.data || []);
+        if (!goalRes.error) setGoals(goalRes.data || []);
+
+        if (settingsRes.data) {
+            // Row exists — restore preferences
+            setCurrencyState(settingsRes.data.currency || 'EUR');
+            setLanguageState(settingsRes.data.language || 'en');
+        } else {
+            // First login: create a default settings row so future fetches succeed
+            await supabase.from('user_settings').upsert({
+                user_id: user.id,
+                currency: 'EUR',
+                language: 'en',
+                updated_at: new Date().toISOString()
+            });
         }
-        return [];
-    });
 
-    // Goals (V6)
-    const [allGoals, setAllGoals] = useState(() => {
-        const saved = localStorage.getItem('finance_app_goals');
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { return []; }
-        }
-        return [];
-    });
-
-    // Preferences (V7)
-    const [currency, setCurrency] = useState(() => {
-        return localStorage.getItem('finance_app_currency') || 'USD';
-    });
-
-    // Language (V10)
-    const [language, setLanguage] = useState(() => {
-        return localStorage.getItem('finance_app_language') || 'en';
-    });
-
-    // Filter lists for the current user
-    const transactions = allTransactions.filter(t => t.userId === user?.id);
-    const recurringTransactions = allRecurring.filter(t => t.userId === user?.id);
-    const goals = allGoals.filter(t => t.userId === user?.id);
-
-    useEffect(() => {
-        localStorage.setItem('finance_app_transactions', JSON.stringify(allTransactions));
-    }, [allTransactions]);
-
-    useEffect(() => {
-        localStorage.setItem('finance_app_recurring', JSON.stringify(allRecurring));
-    }, [allRecurring]);
-
-    useEffect(() => {
-        localStorage.setItem('finance_app_goals', JSON.stringify(allGoals));
-    }, [allGoals]);
-
-    useEffect(() => {
-        localStorage.setItem('finance_app_currency', currency);
-    }, [currency]);
-
-    useEffect(() => {
-        localStorage.setItem('finance_app_language', language);
-    }, [language]);
-
-    // i18n Translation Helper
-    const t = (key) => {
-        return translations[language]?.[key] || translations['en']?.[key] || key;
+        setLoading(false);
     };
 
-    // Format Helpers
+    // ── Preference helpers ──────────────────────────────────────────────────
+    const saveSettings = async (patch) => {
+        if (!user) return;
+        await supabase.from('user_settings').upsert({ user_id: user.id, ...patch, updated_at: new Date().toISOString() });
+    };
+
+    const setCurrency = (val) => {
+        setCurrencyState(val);
+        saveSettings({ currency: val });
+    };
+
+    const setLanguage = (val) => {
+        setLanguageState(val);
+        saveSettings({ language: val });
+    };
+
+    // ── i18n ────────────────────────────────────────────────────────────────
+    const t = (key) => translations[language]?.[key] || translations['en']?.[key] || key;
+
+    // ── Formatting ──────────────────────────────────────────────────────────
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: currency,
-        }).format(amount);
+        const abs = Math.abs(amount);
+        const sign = amount < 0 ? '-' : '';
+        if (abs >= 1_000_000_000) {
+            const n = (abs / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '');
+            return `${sign}${n}B ${currencySymbol}`;
+        }
+        if (abs >= 1_000_000) {
+            const n = (abs / 1_000_000).toFixed(2).replace(/\.?0+$/, '');
+            return `${sign}${n}M ${currencySymbol}`;
+        }
+        if (abs >= 100_000) {
+            const n = (abs / 1_000).toFixed(1).replace(/\.0$/, '');
+            return `${sign}${n}K ${currencySymbol}`;
+        }
+        const n = new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(abs);
+        return `${sign}${n} ${currencySymbol}`;
     };
 
     const currencySymbols = { USD: '$', EUR: '€', GBP: '£', JPY: '¥' };
     const currencySymbol = currencySymbols[currency] || '$';
 
-    // Actions: Standard
-    const addTransaction = (transaction) => {
+    const getFrequencyLabel = (freq) => {
+        const map = { weekly: '/wk', monthly: '/mo', quarterly: '/qtr', biannually: '/6mo', annually: '/yr' };
+        return map[freq] || `/${freq}`;
+    };
+
+    // ── Transactions CRUD ───────────────────────────────────────────────────
+    const addTransaction = async (transaction) => {
         if (!user) return;
-        setAllTransactions(prev => [{
-            ...transaction,
-            id: uuidv4(),
-            userId: user.id,
+        const { data, error } = await supabase.from('transactions').insert({
+            user_id: user.id,
+            description: transaction.description,
             amount: parseFloat(transaction.amount),
-            category: transaction.category || 'General'
-        }, ...prev]);
+            type: transaction.type,
+            category: transaction.category || 'General',
+            date: transaction.date || null
+        }).select().single();
+        if (!error && data) setTransactions(prev => [data, ...prev]);
     };
 
-    const deleteTransaction = (id) => {
-        setAllTransactions(prev => prev.filter(t => t.id !== id));
+    const deleteTransaction = async (id) => {
+        await supabase.from('transactions').delete().eq('id', id);
+        setTransactions(prev => prev.filter(t => t.id !== id));
     };
 
-    const updateTransaction = (id, updatedFields) => {
-        setAllTransactions(prev => prev.map(t =>
-            t.id === id ? { ...t, ...updatedFields, amount: parseFloat(updatedFields.amount) } : t
-        ));
+    const updateTransaction = async (id, updatedFields) => {
+        const { data, error } = await supabase.from('transactions')
+            .update({ ...updatedFields, amount: parseFloat(updatedFields.amount) })
+            .eq('id', id)
+            .select().single();
+        if (!error && data) setTransactions(prev => prev.map(t => t.id === id ? data : t));
     };
 
-    // Actions: Recurring
-    const addRecurringTransaction = (item) => {
+    // ── Recurring Transactions CRUD ─────────────────────────────────────────
+    const addRecurringTransaction = async (item) => {
         if (!user) return;
-        setAllRecurring(prev => [{
-            ...item,
-            id: uuidv4(),
-            userId: user.id,
+        const { data, error } = await supabase.from('recurring_transactions').insert({
+            user_id: user.id,
+            description: item.description,
             amount: parseFloat(item.amount),
-            category: item.category || 'General'
-        }, ...prev]);
+            type: item.type,
+            category: item.category || 'General',
+            frequency: item.frequency || 'monthly'
+        }).select().single();
+        if (!error && data) setRecurringTransactions(prev => [data, ...prev]);
     };
 
-    const deleteRecurringTransaction = (id) => {
-        setAllRecurring(prev => prev.filter(t => t.id !== id));
+    const deleteRecurringTransaction = async (id) => {
+        await supabase.from('recurring_transactions').delete().eq('id', id);
+        setRecurringTransactions(prev => prev.filter(t => t.id !== id));
     };
 
-    // Actions: Goals
-    const addGoal = (goal) => {
+    // ── Goals CRUD ──────────────────────────────────────────────────────────
+    const addGoal = async (goal) => {
         if (!user) return;
-        setAllGoals(prev => [{
-            ...goal,
-            id: uuidv4(),
-            userId: user.id,
-            targetAmount: parseFloat(goal.targetAmount),
-            initialAmount: parseFloat(goal.initialAmount || 0),
-            currentAmount: parseFloat(goal.currentAmount || goal.initialAmount || 0),
-            deadline: goal.deadline || ''
-        }, ...prev]);
+        const { data, error } = await supabase.from('goals').insert({
+            user_id: user.id,
+            name: goal.name,
+            target_amount: parseFloat(goal.targetAmount),
+            current_amount: parseFloat(goal.currentAmount || goal.initialAmount || 0),
+            initial_amount: parseFloat(goal.initialAmount || 0),
+            deadline: goal.deadline || null
+        }).select().single();
+        if (!error && data) setGoals(prev => [data, ...prev]);
     };
 
-    const updateGoal = (id, newAmount) => {
-        setAllGoals(prev => prev.map(g =>
-            g.id === id ? { ...g, currentAmount: parseFloat(newAmount) } : g
-        ));
+    const updateGoal = async (id, newAmount) => {
+        const { data, error } = await supabase.from('goals')
+            .update({ current_amount: parseFloat(newAmount) })
+            .eq('id', id)
+            .select().single();
+        if (!error && data) setGoals(prev => prev.map(g => g.id === id ? data : g));
     };
 
-    const deleteGoal = (id) => {
-        setAllGoals(prev => prev.filter(g => g.id !== id));
+    const deleteGoal = async (id) => {
+        await supabase.from('goals').delete().eq('id', id);
+        setGoals(prev => prev.filter(g => g.id !== id));
     };
 
-    const getFilteredTransactions = (filterType) => {
-        if (filterType === 'all') return transactions;
-
+    // ── Derived / Filter helpers ────────────────────────────────────────────
+    const getFilteredTransactions = (filter = 'all') => {
+        if (filter === 'all') return transactions;
         const now = new Date();
         return transactions.filter(t => {
-            if (!t.date) return true;
-            const date = new Date(t.date);
-            if (filterType === 'daily') {
-                return date.getDate() === now.getDate() &&
-                    date.getMonth() === now.getMonth() &&
-                    date.getFullYear() === now.getFullYear();
-            }
-            if (filterType === 'monthly') {
-                return date.getMonth() === now.getMonth() &&
-                    date.getFullYear() === now.getFullYear();
-            }
-            if (filterType === 'yearly') {
-                return date.getFullYear() === now.getFullYear();
-            }
+            if (!t.date) return false;
+            const d = new Date(t.date);
+            if (filter === 'daily') return d.toDateString() === now.toDateString();
+            if (filter === 'monthly') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            if (filter === 'yearly') return d.getFullYear() === now.getFullYear();
             return true;
         });
     };
 
-    const getMonthlyNormalizedAmount = (amount, frequency) => {
-        const numAmount = parseFloat(amount) || 0;
-        switch (frequency) {
-            case 'weekly': return numAmount * 4.33;
-            case 'quarterly': return numAmount / 3;
-            case 'biannually': return numAmount / 6;
-            case 'annually': return numAmount / 12;
-            case 'monthly':
-            default:
-                return numAmount; // default is monthly
-        }
+    const getAllCombinedTransactions = (filter = 'all') => {
+        const regular = getFilteredTransactions(filter);
+        const recurring = recurringTransactions.map(r => ({ ...r, isRecurring: true }));
+        return [...regular, ...recurring].sort((a, b) =>
+            new Date(b.created_at) - new Date(a.created_at)
+        );
     };
 
-    const getFrequencyLabel = (frequency) => {
-        switch (frequency) {
-            case 'weekly': return '/wk';
-            case 'quarterly': return '/qtr';
-            case 'biannually': return '/6mo';
-            case 'annually': return '/yr';
-            case 'monthly':
-            default: return '/mo';
-        }
-    };
+    const calculateTotals = () => {
+        const monthlyRecurringIncome = recurringTransactions
+            .filter(r => r.type === 'income')
+            .reduce((sum, r) => sum + Number(r.amount), 0);
+        const monthlyRecurringExpenses = recurringTransactions
+            .filter(r => r.type === 'expense')
+            .reduce((sum, r) => sum + Number(r.amount), 0);
 
-    const calculateTotals = (filteredTransactions = transactions) => {
-        // Calculate standard totals
-        const income = filteredTransactions
+        const totalIncome = transactions
             .filter(t => t.type === 'income')
-            .reduce((acc, curr) => acc + curr.amount, 0);
-
-        const expense = filteredTransactions
+            .reduce((sum, t) => sum + Number(t.amount), 0) + monthlyRecurringIncome;
+        const totalExpenses = transactions
             .filter(t => t.type === 'expense')
-            .reduce((acc, curr) => acc + curr.amount, 0);
+            .reduce((sum, t) => sum + Number(t.amount), 0) + monthlyRecurringExpenses;
 
-        // Include active recurring transactions into the main totals
-        const recurringIncome = recurringTransactions
-            .filter(t => t.type === 'income')
-            .reduce((acc, curr) => acc + getMonthlyNormalizedAmount(curr.amount, curr.frequency), 0);
-
-        const recurringExpense = recurringTransactions
-            .filter(t => t.type === 'expense')
-            .reduce((acc, curr) => acc + getMonthlyNormalizedAmount(curr.amount, curr.frequency), 0);
-
-        const totalIncome = income + recurringIncome;
-        const totalExpense = expense + recurringExpense;
-
-        return {
-            income: totalIncome,
-            expense: totalExpense,
-            balance: totalIncome - totalExpense
-        };
+        return { totalIncome, totalExpenses, balance: totalIncome - totalExpenses };
     };
 
     const calculateForecast = () => {
-        const currentTotals = calculateTotals();
-        const currentBalance = currentTotals.balance;
-
-        const recurringIncome = recurringTransactions
-            .filter(t => t.type === 'income')
-            .reduce((acc, curr) => acc + getMonthlyNormalizedAmount(curr.amount, curr.frequency), 0);
-
-        const recurringExpense = recurringTransactions
-            .filter(t => t.type === 'expense')
-            .reduce((acc, curr) => acc + getMonthlyNormalizedAmount(curr.amount, curr.frequency), 0);
-
-        return currentBalance + recurringIncome - recurringExpense;
-    };
-
-    // V6: Combine standard and recurring for Dashboard
-    const getAllCombinedTransactions = (filterType = 'all') => {
-        const standard = getFilteredTransactions(filterType);
-        const recurring = recurringTransactions.map(rt => ({
-            ...rt,
-            isRecurring: true // flag to distinguish
-        }));
-
-        // Combine them
-        const combined = [...standard, ...recurring];
-
-        // Sort by date descending (newest first). 
-        // For recurring without a specific date, we can sort them at the top or bottom, 
-        // let's assume they apply to the current period and sort them conceptually recent.
-        combined.sort((a, b) => {
-            if (!a.date && !b.date) return 0;
-            if (!a.date) return -1; // Keep recurring at top
-            if (!b.date) return 1;
-            return new Date(b.date) - new Date(a.date);
-        });
-
-        return combined;
+        const { totalIncome, totalExpenses } = calculateTotals();
+        const now = new Date();
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const dayOfMonth = now.getDate();
+        const daysRemaining = daysInMonth - dayOfMonth;
+        const dailyRate = (totalIncome - totalExpenses) / dayOfMonth;
+        return totalIncome - totalExpenses + (dailyRate * daysRemaining);
     };
 
     const getHistoricalSavings = (months = 3) => {
         const now = new Date();
-        const pastDate = new Date();
-        pastDate.setMonth(now.getMonth() - months);
-
-        const pastTransactions = transactions.filter(t => {
-            if (!t.date) return false;
-            const tDate = new Date(t.date);
-            return tDate >= pastDate && tDate <= now;
-        });
-
-        const historicalIncome = pastTransactions
-            .filter(t => t.type === 'income')
-            .reduce((acc, curr) => acc + curr.amount, 0);
-
-        const historicalExpense = pastTransactions
-            .filter(t => t.type === 'expense')
-            .reduce((acc, curr) => acc + curr.amount, 0);
-
-        const avgMonthlyIncome = months > 0 ? (historicalIncome / months) : 0;
-        const avgMonthlyExpense = months > 0 ? (historicalExpense / months) : 0;
-
-        const recurringInc = recurringTransactions
-            .filter(t => t.type === 'income')
-            .reduce((acc, curr) => acc + getMonthlyNormalizedAmount(curr.amount, curr.frequency), 0);
-
-        const recurringExp = recurringTransactions
-            .filter(t => t.type === 'expense')
-            .reduce((acc, curr) => acc + getMonthlyNormalizedAmount(curr.amount, curr.frequency), 0);
-
-        const totalAvgMonthlyIncome = avgMonthlyIncome + recurringInc;
-        const totalAvgMonthlyExpense = avgMonthlyExpense + recurringExp;
-
-        return {
-            avgIncome: totalAvgMonthlyIncome,
-            avgExpense: totalAvgMonthlyExpense,
-            avgSavings: totalAvgMonthlyIncome - totalAvgMonthlyExpense
-        };
+        const savingsByMonth = [];
+        for (let i = 0; i < months; i++) {
+            const targetMonth = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthTxns = transactions.filter(t => {
+                if (!t.date) return false;
+                const d = new Date(t.date);
+                return d.getMonth() === targetMonth.getMonth() && d.getFullYear() === targetMonth.getFullYear();
+            });
+            const income = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+            const expenses = monthTxns.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+            savingsByMonth.push(income - expenses);
+        }
+        const avgSavings = savingsByMonth.reduce((s, v) => s + v, 0) / months;
+        return { savingsByMonth, avgSavings };
     };
 
     const getProjectedAnnualSavings = () => {
         const { avgSavings } = getHistoricalSavings(3);
         return avgSavings * 12;
     };
+
+    // ── Normalise Supabase snake_case keys to camelCase for legacy consumers ─
+    // Goals from Supabase use snake_case; the Profile page uses camelCase.
+    const normalisedGoals = goals.map(g => ({
+        ...g,
+        targetAmount: g.target_amount ?? g.targetAmount,
+        currentAmount: g.current_amount ?? g.currentAmount,
+        initialAmount: g.initial_amount ?? g.initialAmount
+    }));
 
     return (
         <FinanceContext.Provider value={{
@@ -323,7 +269,7 @@ export const FinanceProvider = ({ children }) => {
             recurringTransactions,
             addRecurringTransaction,
             deleteRecurringTransaction,
-            goals,
+            goals: normalisedGoals,
             addGoal,
             updateGoal,
             deleteGoal,
@@ -340,7 +286,8 @@ export const FinanceProvider = ({ children }) => {
             setLanguage,
             t,
             getHistoricalSavings,
-            getProjectedAnnualSavings
+            getProjectedAnnualSavings,
+            loading
         }}>
             {children}
         </FinanceContext.Provider>

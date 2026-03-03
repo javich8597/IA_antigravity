@@ -8,14 +8,23 @@ export default function Register({ onSwitchToLogin }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [info, setInfo] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             setError('');
-            register(email, password, name);
+            setInfo('');
+            setLoading(true);
+            await register(email, password, name);
+            // Supabase sends a confirmation email by default.
+            // If email confirmation is disabled in the Supabase project the user is logged in immediately.
+            setInfo('Account created! Check your email to confirm your address, then log in.');
         } catch (err) {
             setError(err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -34,6 +43,12 @@ export default function Register({ onSwitchToLogin }) {
                     <div className="auth-error">
                         <AlertCircle size={18} />
                         <span>{error}</span>
+                    </div>
+                )}
+
+                {info && (
+                    <div className="auth-error" style={{ background: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.3)', color: '#34d399' }}>
+                        <span>{info}</span>
                     </div>
                 )}
 
@@ -75,9 +90,9 @@ export default function Register({ onSwitchToLogin }) {
                         />
                     </div>
 
-                    <button type="submit" className="submit-btn auth-submit">
+                    <button type="submit" className="submit-btn auth-submit" disabled={loading}>
                         <UserPlus size={20} />
-                        <span>Create Account</span>
+                        <span>{loading ? 'Creating account…' : 'Create Account'}</span>
                     </button>
                 </form>
 

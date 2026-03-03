@@ -1,65 +1,54 @@
 import { createContext, useState, useEffect, useContext } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../lib/supabaseClient';
 
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(() => {
-        const activeSession = localStorage.getItem('finance_app_session');
-        return activeSession ? JSON.parse(activeSession) : null;
-    });
-
-    const [users, setUsers] = useState(() => {
-        const saved = localStorage.getItem('finance_app_users');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [user, setUser] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
 
     useEffect(() => {
-        localStorage.setItem('finance_app_users', JSON.stringify(users));
-    }, [users]);
+        // Restore session on mount
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUser(session?.user ?? null);
+            setAuthLoading(false);
+        });
 
-    useEffect(() => {
-        if (user) {
-            localStorage.setItem('finance_app_session', JSON.stringify(user));
-        } else {
-            localStorage.removeItem('finance_app_session');
-        }
-    }, [user]);
+        // Listen for login / logout events
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+        });
 
-    const register = (email, password, name) => {
-        // Check if user already exists
-        if (users.find(u => u.email === email)) {
-            throw new Error('User already exists');
-        }
+        return () => subscription.unsubscribe();
+    }, []);
 
-        const newUser = { id: uuidv4(), email, password, name };
-        setUsers(prev => [...prev, newUser]);
-        setUser({ id: newUser.id, email: newUser.email, name: newUser.name });
-        return true;
+    const register = async (email, password, name) => {
+        const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { name } }
+        });
+        if (error) throw new Error(error.message);
     };
 
-    const login = (email, password) => {
-        const existingUser = users.find(u => u.email === email && u.password === password);
-        if (!existingUser) {
-            throw new Error('Invalid email or password');
-        }
-        setUser({ id: existingUser.id, email: existingUser.email, name: existingUser.name });
-        return true;
+    const login = async (email, password) => {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw new Error(error.message);
     };
 
-    const logout = () => {
-        setUser(null);
+    const logout = async () => {
+        await supabase.auth.signOut();
     };
+
+    // Expose a compatible user shape: { id, email, name }
+    const userProfile = user
+        ? { id: user.id, email: user.email, name: user.user_metadata?.name || user.email }
+        : null;
 
     return (
-        <AuthContext.Provider value={{
-            user,
-            register,
-            login,
-            logout
-        }}>
+        <AuthContext.Provider value={{ user: userProfile, authLoading, register, login, logout }}>
             {children}
         </AuthContext.Provider>
     );

@@ -7,14 +7,18 @@ export default function Login({ onSwitchToRegister }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             setError('');
-            login(email, password);
+            setLoading(true);
+            await login(email, password);
         } catch (err) {
             setError(err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -61,9 +65,9 @@ export default function Login({ onSwitchToRegister }) {
                         />
                     </div>
 
-                    <button type="submit" className="submit-btn auth-submit">
+                    <button type="submit" className="submit-btn auth-submit" disabled={loading}>
                         <LogIn size={20} />
-                        <span>Sign In</span>
+                        <span>{loading ? 'Signing in…' : 'Sign In'}</span>
                     </button>
                 </form>
 

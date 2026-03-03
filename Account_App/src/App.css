@@ -21,6 +21,11 @@
   gap: 2rem;
 }
 
+/* Prevent grid children from expanding past the screen */
+.main-grid>* {
+  min-width: 0;
+}
+
 @media (min-width: 1024px) {
   .main-grid {
     grid-template-columns: 350px 1fr;
@@ -91,9 +96,13 @@
 }
 
 .card-amount {
-  font-size: 2rem;
+  font-size: 1.60rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  /* Allow the number to wrap to a second line rather than overflow or truncate */
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .balance-text {
@@ -293,7 +302,10 @@ select.form-input option {
 
 /* List Styles */
 .list-container {
-  padding: 2rem;
+  padding: 1.25rem;
+  overflow: hidden;
+  /* prevent any child from bleeding out */
+  min-width: 0;
 }
 
 .list-header {
@@ -352,17 +364,20 @@ select.form-input option {
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
-
 .transaction-item {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
+  gap: 0.5rem;
+  padding: 1.5rem 0.75rem;
+  /* compact padding to keep items within panel */
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--card-border);
-  border-radius: 14px;
+  border-radius: 12px;
   transition: var(--transition);
   animation: slideIn 0.3s ease-out;
+  min-width: 0;
+  overflow: hidden;
 }
 
 @keyframes slideIn {
@@ -382,51 +397,67 @@ select.form-input option {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-.t-info {
+/* ── Reference design: icon | description+meta | amount | buttons ─── */
+
+/* Left: icon + text block, grows to fill available space */
+.t-left {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
+  flex: 1;
+  /* fills all available space → amount+buttons sit flush at the right edge */
+  min-width: 0;
 }
 
+/* Icon — rounded square matching the reference */
 .t-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .t-icon.expense {
   background: var(--danger-bg);
-  color: var(--danger);
 }
 
 .t-icon.income {
   background: var(--success-bg);
-  color: var(--success);
 }
 
-.t-details h4 {
-  font-size: 1rem;
+/* Text block: description title + meta line */
+.t-details {
+  min-width: 0;
+  flex: 1;
+}
+
+.t-description {
+  font-size: 0.9rem;
   font-weight: 500;
-  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 0.18rem;
 }
 
-.t-details p {
-  font-size: 0.75rem;
+.t-meta {
+  font-size: 0.72rem;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.t-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
+/* Centre-right: amount */
 .t-amount {
   font-weight: 600;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+
 }
 
 .t-amount.expense {
@@ -436,6 +467,17 @@ select.form-input option {
 .t-amount.income {
   color: var(--success);
 }
+
+/* Far right: edit + delete stacked vertically */
+.t-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 
 .delete-btn {
   background: transparent;
@@ -741,11 +783,34 @@ select.form-input option {
 }
 
 /* Side-by-Side Dashboard Lists */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+/* Prevent cards from expanding past their grid allocation */
+.dashboard-grid>* {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 .dashboard-lists-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1.5rem;
   margin-top: 1.5rem;
+}
+
+/* All grid children always get min-width:0 to prevent overflow */
+.dashboard-lists-grid>* {
+  min-width: 0;
+  overflow: hidden;
 }
 
 @media (min-width: 1024px) {

@@ -4,7 +4,7 @@ import TransactionList from './TransactionList';
 
 export default function Dashboard() {
     const { calculateTotals, recurringTransactions, deleteRecurringTransaction, formatCurrency, getFrequencyLabel, t } = useFinance();
-    const { income, expense, balance } = calculateTotals();
+    const { totalIncome: income, totalExpenses: expense, balance } = calculateTotals();
 
     return (
         <div className="dashboard-wrapper">
@@ -58,23 +58,26 @@ export default function Dashboard() {
                         ) : (
                             recurringTransactions.map(t => (
                                 <div key={t.id} className="transaction-item">
-                                    <div className="t-info">
+                                    {/* Left side: text block */}
+                                    <div className="t-left">
                                         <div className="t-details">
-                                            <h4>{t.description}</h4>
-                                            <p>{t.category}</p>
+                                            <h4 className="t-description" style={{ marginBottom: 0 }}>{t.description}</h4>
+                                            <p className="t-meta">{t.category}</p>
                                         </div>
                                     </div>
-                                    <div className="t-actions">
-                                        <span className={`t-amount ${t.type}`}>
-                                            {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                                            <span className="monthly-label" style={{ fontSize: '0.7em', marginLeft: '2px', opacity: 0.7 }}>{getFrequencyLabel(t.frequency)}</span>
-                                        </span>
+                                    {/* Centre-right: amount */}
+                                    <span className={`t-amount ${t.type}`}>
+                                        {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                                        <span className="monthly-label" style={{ fontSize: '0.7em', marginLeft: '2px', opacity: 0.7 }}>{getFrequencyLabel(t.frequency)}</span>
+                                    </span>
+                                    {/* Far right: delete button */}
+                                    <div className="t-buttons">
                                         <button
                                             onClick={() => deleteRecurringTransaction(t.id)}
                                             className="delete-btn"
                                             aria-label="Delete recurring item"
                                         >
-                                            <Trash2 size={16} />
+                                            <Trash2 size={13} />
                                         </button>
                                     </div>
                                 </div>
@@ -84,7 +87,7 @@ export default function Dashboard() {
                 </div>
             </div>
             <div className="mt-8">
-                <TransactionList combined={true} />
+                <TransactionList combined={true} title={t('totalTransactions')} />
             </div>
         </div>
     );

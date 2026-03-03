@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { PlusCircle } from 'lucide-react';
-import { CATEGORIES } from '../utils/categoryIcons';
+import { CATEGORIES, CATEGORY_KEYS } from '../utils/categoryIcons';
+import CustomSelect from './CustomSelect';
+import CustomDatePicker from './CustomDatePicker';
 
 export default function TransactionForm() {
     const { addTransaction, currencySymbol, t } = useFinance();
@@ -90,25 +92,18 @@ export default function TransactionForm() {
 
                 <div className="form-group">
                     <label>{t('category')}</label>
-                    <select
-                        className="form-input"
+                    <CustomSelect
                         value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    >
-                        {CATEGORIES.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </select>
+                        onChange={(val) => setFormData({ ...formData, category: val })}
+                        options={CATEGORIES.map(cat => ({ value: cat, label: t(CATEGORY_KEYS[cat]) }))}
+                    />
                 </div>
 
                 <div className="form-group">
                     <label>{t('date')}</label>
-                    <input
-                        type="date"
+                    <CustomDatePicker
                         value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                        required
-                        className="form-input"
+                        onChange={(val) => setFormData({ ...formData, date: val })}
                     />
                 </div>
 

@@ -13,7 +13,7 @@ import Recurring from './pages/Recurring';
 import Profile from './pages/Profile';
 
 function App() {
-  const { user } = useAuth();
+  const { user, authLoading } = useAuth();
   const [showRegister, setShowRegister] = useState(false);
 
   const [theme, setTheme] = useState(() => {
@@ -32,6 +32,25 @@ function App() {
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
+
+  // Wait for Supabase to restore the session before deciding what to render
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+          <div style={{
+            width: 44, height: 44,
+            border: '3px solid rgba(99,102,241,0.25)',
+            borderTop: '3px solid #6366f1',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 1rem auto'
+          }} />
+          <p style={{ fontSize: '0.9rem', letterSpacing: '0.05em' }}>Loading…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return showRegister

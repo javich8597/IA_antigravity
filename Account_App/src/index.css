@@ -43,6 +43,8 @@ body {
   background-color: var(--bg-color);
   color: var(--text-main);
   min-height: 100vh;
+  overflow-x: hidden;
+  /* ← never allow horizontal scroll */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-image:
@@ -55,6 +57,7 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+  /* overflow: hidden; removed so dropdowns can extend past the bottom */
 }
 
 /* Glassmorphism Classes */

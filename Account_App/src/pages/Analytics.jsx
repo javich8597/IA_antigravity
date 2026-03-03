@@ -16,10 +16,12 @@ export default function Analytics() {
 
     const categoryData = allExpenses.reduce((acc, curr) => {
         const existing = acc.find(item => item.name === curr.category);
+        const amountNum = parseFloat(curr.amount) || 0;
+
         if (existing) {
-            existing.value += curr.amount;
+            existing.value += amountNum;
         } else {
-            acc.push({ name: curr.category, value: curr.amount });
+            acc.push({ name: curr.category, value: amountNum });
         }
         return acc;
     }, []);
@@ -27,10 +29,13 @@ export default function Analytics() {
     // Sort categoryData by value descending for the breakdown list
     categoryData.sort((a, b) => b.value - a.value);
 
-    const { income, expense } = useFinance().calculateTotals();
+    // Filter out categories with 0 value
+    const finalCategoryData = categoryData.filter(d => d.value > 0);
+
+    const { totalIncome, totalExpenses } = useFinance().calculateTotals();
     const comparisonData = [
-        { name: t('income'), amount: income },
-        { name: t('expenses'), amount: expense }
+        { name: t('income'), amount: parseFloat(totalIncome) || 0 },
+        { name: t('expenses'), amount: parseFloat(totalExpenses) || 0 }
     ];
 
     const COLORS = ['#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#facc15', '#10b981'];
@@ -92,15 +97,16 @@ export default function Analytics() {
                                 <ResponsiveContainer>
                                     <PieChart>
                                         <Pie
-                                            data={categoryData}
+                                            data={finalCategoryData}
                                             cx="50%"
                                             cy="50%"
                                             innerRadius={80}
                                             outerRadius={140}
                                             paddingAngle={5}
                                             dataKey="value"
+                                            stroke="none"
                                         >
-                                            {categoryData.map((entry, index) => (
+                                            {finalCategoryData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                             ))}
                                         </Pie>
@@ -126,30 +132,28 @@ export default function Analytics() {
                         </div>
                     </div>
 
-                    {chartType === 'pie' && categoryData.length > 0 && (
+                    {chartType === 'pie' && finalCategoryData.length > 0 && (
                         <div className="analytics-breakdown glass-panel" style={{ padding: '1.5rem' }}>
                             <h3 className="section-title" style={{ marginBottom: '1.5rem', textAlign: 'center' }}>Detailed Breakdown</h3>
                             <div className="transactions-list">
-                                {categoryData.map((item, index) => {
+                                {finalCategoryData.map((item, index) => {
                                     const { icon: CatIcon, color, bg } = getCategoryConfig(item.name);
-                                    const percentage = ((item.value / expense) * 100).toFixed(1);
+                                    const percentage = totalExpenses > 0 ? ((item.value / totalExpenses) * 100).toFixed(1) : 0;
 
                                     return (
-                                        <div key={item.name} className="transaction-item" style={{ borderBottom: index === categoryData.length - 1 ? 'none' : '1px solid var(--card-border)' }}>
-                                            <div className="t-info">
-                                                <div className="t-icon" style={{ backgroundColor: bg, color: color }}>
+                                        <div key={item.name} className="transaction-item" style={{ borderBottom: index === finalCategoryData.length - 1 ? 'none' : '1px solid var(--card-border)' }}>
+                                            <div className="t-left">
+                                                <div className="t-icon" style={{ backgroundColor: bg, color: color, borderRadius: '10px' }}>
                                                     <CatIcon size={20} />
                                                 </div>
                                                 <div className="t-details">
-                                                    <h4 style={{ fontWeight: 600 }}>{item.name}</h4>
-                                                    <p>{percentage}% of total expenses</p>
+                                                    <h4 className="t-description" style={{ marginBottom: 0 }}>{t(item.name)}</h4>
+                                                    <p className="t-meta">{percentage}% of total expenses</p>
                                                 </div>
                                             </div>
-                                            <div className="t-actions">
-                                                <span className="t-amount expense">
-                                                    {formatCurrency(item.value)}
-                                                </span>
-                                            </div>
+                                            <span className="t-amount expense">
+                                                {formatCurrency(item.value)}
+                                            </span>
                                         </div>
                                     );
                                 })}

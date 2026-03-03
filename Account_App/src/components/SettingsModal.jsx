@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
+import CustomSelect from './CustomSelect';
 
 export default function SettingsModal({ isOpen, onClose }) {
     const { currency, setCurrency, language, setLanguage, t } = useFinance();
@@ -23,28 +24,28 @@ export default function SettingsModal({ isOpen, onClose }) {
 
                     <div className="form-group" style={{ marginBottom: 0 }}>
                         <label>{t('language')}</label>
-                        <select
-                            className="form-input"
+                        <CustomSelect
                             value={language}
-                            onChange={(e) => setLanguage(e.target.value)}
-                        >
-                            <option value="en">English</option>
-                            <option value="es">Español</option>
-                        </select>
+                            onChange={setLanguage}
+                            options={[
+                                { value: 'en', label: 'English' },
+                                { value: 'es', label: 'Español' }
+                            ]}
+                        />
                     </div>
 
                     <div className="form-group" style={{ marginBottom: 0 }}>
                         <label>{t('currency')}</label>
-                        <select
-                            className="form-input"
+                        <CustomSelect
                             value={currency}
-                            onChange={(e) => setCurrency(e.target.value)}
-                        >
-                            <option value="USD">USD ($)</option>
-                            <option value="EUR">EUR (€)</option>
-                            <option value="GBP">GBP (£)</option>
-                            <option value="JPY">JPY (¥)</option>
-                        </select>
+                            onChange={setCurrency}
+                            options={[
+                                { value: 'USD', label: 'USD ($)' },
+                                { value: 'EUR', label: 'EUR (€)' },
+                                { value: 'GBP', label: 'GBP (£)' },
+                                { value: 'JPY', label: 'JPY (¥)' }
+                            ]}
+                        />
                     </div>
 
                 </div>
