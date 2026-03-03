@@ -9,6 +9,7 @@ export default function Profile() {
     const {
         calculateTotals,
         transactions,
+        recurringTransactions,
         goals,
         addGoal,
         updateGoal,
@@ -19,7 +20,7 @@ export default function Profile() {
         getHistoricalSavings
     } = useFinance();
 
-    const { income, expense } = calculateTotals();
+    const { totalIncome: income, totalExpenses: expense } = calculateTotals();
 
     const [formVisible, setFormVisible] = useState(false);
     const [goalData, setGoalData] = useState({ name: '', targetAmount: '', initialAmount: '', deadline: '' });
@@ -80,14 +81,20 @@ export default function Profile() {
         healthColor = 'var(--warning)';
     }
 
-    // Category breakdown mapping
-    const expensesOnly = transactions.filter(t => t.type === 'expense');
-    const categoryData = expensesOnly.reduce((acc, curr) => {
+    // Category breakdown mapping — include both one-off and recurring expenses
+    const allExpenses = [
+        ...transactions.filter(t => t.type === 'expense'),
+        ...(recurringTransactions || []).filter(t => t.type === 'expense')
+    ];
+
+    const categoryData = allExpenses.reduce((acc, curr) => {
         const existing = acc.find(item => item.name === curr.category);
+        const amountNum = parseFloat(curr.amount) || 0;
+
         if (existing) {
-            existing.value += curr.amount;
+            existing.value += amountNum;
         } else {
-            acc.push({ name: curr.category, value: curr.amount });
+            acc.push({ name: curr.category, value: amountNum });
         }
         return acc;
     }, []);

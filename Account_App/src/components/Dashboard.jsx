@@ -50,7 +50,7 @@ export default function Dashboard() {
                             {t('activeRecurring')}
                         </h2>
                     </div>
-                    <div className="transactions-list" style={{ minHeight: '300px' }}>
+                    <div className="transactions-list scrollable-list" style={{ minHeight: '300px' }}>
                         {(!recurringTransactions || recurringTransactions.length === 0) ? (
                             <div className="empty-state">
                                 <p>{t('noRecurringFound')}</p>

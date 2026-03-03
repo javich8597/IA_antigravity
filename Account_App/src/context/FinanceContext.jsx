@@ -37,16 +37,73 @@ export const FinanceProvider = ({ children }) => {
             supabase.from('user_settings').select('*').maybeSingle()
         ]);
 
-        if (!txRes.error) setTransactions(txRes.data || []);
-        if (!recRes.error) setRecurringTransactions(recRes.data || []);
+        let loadedTxs = txRes.data || [];
+        let loadedRecs = recRes.data || [];
+
+        // --- RECURRING ENGINE EXECUTION ---
+        try {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            const toInsert = [];
+            const updates = [];
+
+            for (const r of loadedRecs) {
+                if (!r.next_date) continue; // Skip old legacy data without dates
+                let currDate = new Date(r.next_date);
+                let processed = false;
+
+                while (currDate <= now) {
+                    toInsert.push({
+                        user_id: r.user_id,
+                        description: r.description + ' (Auto)',
+                        amount: r.amount,
+                        type: r.type,
+                        category: r.category,
+                        date: currDate.toISOString().split('T')[0]
+                    });
+
+                    if (r.frequency === 'weekly') currDate.setDate(currDate.getDate() + 7);
+                    else if (r.frequency === 'monthly') currDate.setMonth(currDate.getMonth() + 1);
+                    else if (r.frequency === 'quarterly') currDate.setMonth(currDate.getMonth() + 3);
+                    else if (r.frequency === 'biannually') currDate.setMonth(currDate.getMonth() + 6);
+                    else if (r.frequency === 'annually') currDate.setFullYear(currDate.getFullYear() + 1);
+                    else currDate.setMonth(currDate.getMonth() + 1); // fallback
+
+                    processed = true;
+                }
+
+                if (processed) {
+                    updates.push({ id: r.id, next_date: currDate.toISOString().split('T')[0] });
+                    // Provide optimistic update to our loaded recurring list so it stops triggering
+                    r.next_date = currDate.toISOString().split('T')[0];
+                }
+            }
+
+            if (toInsert.length > 0) {
+                const { data: triggerData } = await supabase.from('transactions').insert(toInsert).select();
+                if (triggerData) {
+                    loadedTxs = [...triggerData, ...loadedTxs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                }
+            }
+            if (updates.length > 0) {
+                // Loop to update them
+                for (const up of updates) {
+                    await supabase.from('recurring_transactions').update({ next_date: up.next_date }).eq('id', up.id);
+                }
+            }
+        } catch (err) {
+            console.error('Error auto-processing recurring tx:', err);
+        }
+        // ----------------------------------
+
+        setTransactions(loadedTxs);
+        setRecurringTransactions(loadedRecs);
         if (!goalRes.error) setGoals(goalRes.data || []);
 
         if (settingsRes.data) {
-            // Row exists — restore preferences
             setCurrencyState(settingsRes.data.currency || 'EUR');
             setLanguageState(settingsRes.data.language || 'en');
         } else {
-            // First login: create a default settings row so future fetches succeed
             await supabase.from('user_settings').upsert({
                 user_id: user.id,
                 currency: 'EUR',
@@ -141,9 +198,22 @@ export const FinanceProvider = ({ children }) => {
             amount: parseFloat(item.amount),
             type: item.type,
             category: item.category || 'General',
-            frequency: item.frequency || 'monthly'
+            frequency: item.frequency || 'monthly',
+            start_date: item.startDate,
+            next_date: item.startDate // Initially the next execution is the start date
         }).select().single();
-        if (!error && data) setRecurringTransactions(prev => [data, ...prev]);
+        if (!error && data) {
+            // Because we might have added a next_date <= today, we should probably just trigger fetchAll to process it.
+            // But to avoid an extra network request, we can just fetchAll anyway or let the user refresh.
+            // For now, update local state, and if it was supposed to trigger today, they can refresh.
+            setRecurringTransactions(prev => [data, ...prev]);
+            // If the start date is <= today, re-fetch to trigger the processing engine
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            if (new Date(item.startDate) <= now) {
+                fetchAll();
+            }
+        }
     };
 
     const deleteRecurringTransaction = async (id) => {
@@ -201,19 +271,12 @@ export const FinanceProvider = ({ children }) => {
     };
 
     const calculateTotals = () => {
-        const monthlyRecurringIncome = recurringTransactions
-            .filter(r => r.type === 'income')
-            .reduce((sum, r) => sum + Number(r.amount), 0);
-        const monthlyRecurringExpenses = recurringTransactions
-            .filter(r => r.type === 'expense')
-            .reduce((sum, r) => sum + Number(r.amount), 0);
-
         const totalIncome = transactions
             .filter(t => t.type === 'income')
-            .reduce((sum, t) => sum + Number(t.amount), 0) + monthlyRecurringIncome;
+            .reduce((sum, t) => sum + Number(t.amount), 0);
         const totalExpenses = transactions
             .filter(t => t.type === 'expense')
-            .reduce((sum, t) => sum + Number(t.amount), 0) + monthlyRecurringExpenses;
+            .reduce((sum, t) => sum + Number(t.amount), 0);
 
         return { totalIncome, totalExpenses, balance: totalIncome - totalExpenses };
     };
@@ -229,8 +292,11 @@ export const FinanceProvider = ({ children }) => {
     };
 
     const getHistoricalSavings = (months = 3) => {
+        if (!user) return { savingsByMonth: [], avgSavings: 0 };
+
         const now = new Date();
         const savingsByMonth = [];
+
         for (let i = 0; i < months; i++) {
             const targetMonth = new Date(now.getFullYear(), now.getMonth() - i, 1);
             const monthTxns = transactions.filter(t => {
@@ -238,11 +304,16 @@ export const FinanceProvider = ({ children }) => {
                 const d = new Date(t.date);
                 return d.getMonth() === targetMonth.getMonth() && d.getFullYear() === targetMonth.getFullYear();
             });
+
             const income = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
             const expenses = monthTxns.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+
+            // Monthly capacity from purely existing historical transaction logs
             savingsByMonth.push(income - expenses);
         }
-        const avgSavings = savingsByMonth.reduce((s, v) => s + v, 0) / months;
+
+        const totalSavings = savingsByMonth.reduce((s, v) => s + v, 0);
+        const avgSavings = totalSavings / months;
         return { savingsByMonth, avgSavings };
     };
 

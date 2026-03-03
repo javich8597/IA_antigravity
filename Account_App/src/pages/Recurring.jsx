@@ -21,12 +21,13 @@ export default function Recurring() {
         amount: '',
         frequency: 'monthly',
         type: 'expense',
-        category: CATEGORIES[0]
+        category: CATEGORIES[0],
+        startDate: new Date().toISOString().split('T')[0]
     });
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!formData.description || !formData.amount) return;
+        if (!formData.description || !formData.amount || !formData.startDate) return;
 
         addRecurringTransaction({
             ...formData,
@@ -37,7 +38,8 @@ export default function Recurring() {
             amount: '',
             frequency: 'monthly',
             type: 'expense',
-            category: CATEGORIES[0]
+            category: CATEGORIES[0],
+            startDate: new Date().toISOString().split('T')[0]
         });
     };
 
@@ -92,6 +94,17 @@ export default function Recurring() {
                         </div>
 
                         <div className="form-group">
+                            <label>Start Date</label>
+                            <input
+                                type="date"
+                                className="form-input"
+                                value={formData.startDate}
+                                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                required
+                            />
+                        </div>
+
+                        <div className="form-group">
                             <label>{t('amount')} (Per Cycle)</label>
                             <div className="input-with-symbol">
                                 <span className="currency-symbol">{currencySymbol}</span>
@@ -140,7 +153,7 @@ export default function Recurring() {
 
                 <div className="recurring-list-container">
                     <h3 className="section-title">{t('activeRecurring')}</h3>
-                    <div className="transactions-list">
+                    <div className="transactions-list scrollable-list">
                         {(!recurringTransactions || recurringTransactions.length === 0) ? (
                             <div className="empty-state">
                                 <p>{t('noRecurringFound')}</p>

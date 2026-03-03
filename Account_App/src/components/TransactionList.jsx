@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Trash2, Calendar, Repeat, Pencil, Check, X } from 'lucide-react';
-import { getCategoryConfig, CATEGORY_KEYS } from '../utils/categoryIcons';
+import { getCategoryConfig, CATEGORY_KEYS, CATEGORIES } from '../utils/categoryIcons';
 
 export default function TransactionList({ combined = false, title }) {
     const {
@@ -19,7 +19,12 @@ export default function TransactionList({ combined = false, title }) {
     const [editingId, setEditingId] = useState(null);
     const [editData, setEditData] = useState({});
 
-    const transactions = combined ? getAllCombinedTransactions(filter) : getFilteredTransactions(filter);
+    let transactions = combined ? getAllCombinedTransactions(filter) : getFilteredTransactions(filter);
+
+    // Hide auto-generated recurring items from the "Recent Transactions" view
+    if (!combined) {
+        transactions = transactions.filter(t => !(t.description && t.description.endsWith('(Auto)')));
+    }
 
     const formatDate = (dateString) => {
         if (!dateString) return '';
@@ -77,16 +82,16 @@ export default function TransactionList({ combined = false, title }) {
                         const isEditing = editingId === txn.id;
 
                         return (
-                            <div key={txn.id} className="transaction-item" style={isEditing ? { flexDirection: 'column', alignItems: 'stretch', gap: '1rem', padding: '1rem' } : {}}>
+                            <div key={txn.id} className="transaction-item" style={isEditing ? { flexDirection: 'column', alignItems: 'stretch', gap: '1rem', padding: '1.25rem', overflow: 'visible', zIndex: 10 } : {}}>
                                 {isEditing ? (
                                     /* --- Inline Edit Form --- */
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                             <div className="form-group" style={{ marginBottom: 0 }}>
                                                 <label style={{ fontSize: '0.75rem' }}>Description</label>
                                                 <input
                                                     className="form-input"
-                                                    style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)' }}
+                                                    style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)', width: '100%' }}
                                                     value={editData.description}
                                                     onChange={e => setEditData({ ...editData, description: e.target.value })}
                                                 />
@@ -97,7 +102,7 @@ export default function TransactionList({ combined = false, title }) {
                                                     type="number"
                                                     step="0.01"
                                                     className="form-input"
-                                                    style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)' }}
+                                                    style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)', width: '100%' }}
                                                     value={editData.amount}
                                                     onChange={e => setEditData({ ...editData, amount: e.target.value })}
                                                 />
@@ -106,7 +111,7 @@ export default function TransactionList({ combined = false, title }) {
                                                 <label style={{ fontSize: '0.75rem' }}>Category</label>
                                                 <select
                                                     className="form-input"
-                                                    style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)' }}
+                                                    style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)', width: '100%', appearance: 'auto' }}
                                                     value={editData.category}
                                                     onChange={e => setEditData({ ...editData, category: e.target.value })}
                                                 >
@@ -120,7 +125,7 @@ export default function TransactionList({ combined = false, title }) {
                                                 <input
                                                     type="date"
                                                     className="form-input"
-                                                    style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)' }}
+                                                    style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', backgroundColor: 'var(--bg-color)', width: '100%' }}
                                                     value={editData.date}
                                                     onChange={e => setEditData({ ...editData, date: e.target.value })}
                                                 />
