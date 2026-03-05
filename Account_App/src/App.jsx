@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
 import Recurring from './pages/Recurring';
 import Profile from './pages/Profile';
+import Wealth from './pages/Wealth';
 
 function App() {
   const { user, authLoading } = useAuth();
@@ -67,6 +68,7 @@ function App() {
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/recurring" element={<Recurring />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/wealth" element={<Wealth />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

@@ -16,13 +16,24 @@ export default function Analytics() {
 
     const categoryData = allExpenses.reduce((acc, curr) => {
         const rootCategory = curr.category ? curr.category.split(' - ')[0] : 'General';
+        const subCategory = curr.category ? curr.category : 'General';
         const existing = acc.find(item => item.name === rootCategory);
         const amountNum = parseFloat(curr.amount) || 0;
 
         if (existing) {
             existing.value += amountNum;
+            const existingSub = existing.subcategories.find(sub => sub.name === subCategory);
+            if (existingSub) {
+                existingSub.value += amountNum;
+            } else {
+                existing.subcategories.push({ name: subCategory, value: amountNum });
+            }
         } else {
-            acc.push({ name: rootCategory, value: amountNum });
+            acc.push({
+                name: rootCategory,
+                value: amountNum,
+                subcategories: [{ name: subCategory, value: amountNum }]
+            });
         }
         return acc;
     }, []);
@@ -31,10 +42,13 @@ export default function Analytics() {
     categoryData.sort((a, b) => b.value - a.value);
 
     // Filter out categories with 0 value
-    const finalCategoryData = categoryData.filter(d => d.value > 0).map(d => ({
-        ...d,
-        displayName: CATEGORY_KEYS[d.name] ? t(CATEGORY_KEYS[d.name]) : d.name
-    }));
+    const finalCategoryData = categoryData.filter(d => d.value > 0).map(d => {
+        d.subcategories.sort((a, b) => b.value - a.value); // Sort subcategories desc too
+        return {
+            ...d,
+            displayName: CATEGORY_KEYS[d.name] ? t(CATEGORY_KEYS[d.name]) : d.name
+        };
+    });
 
     const { totalIncome, totalExpenses } = useFinance().calculateTotals();
     const comparisonData = [
@@ -140,25 +154,59 @@ export default function Analytics() {
                     {chartType === 'pie' && finalCategoryData.length > 0 && (
                         <div className="analytics-breakdown glass-panel" style={{ padding: '1.5rem' }}>
                             <h3 className="section-title" style={{ marginBottom: '1.5rem', textAlign: 'center' }}>Detailed Breakdown</h3>
-                            <div className="transactions-list">
+                            <div className="transactions-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 {finalCategoryData.map((item, index) => {
                                     const { icon: CatIcon, color, bg } = getCategoryConfig(item.name);
                                     const percentage = totalExpenses > 0 ? ((item.value / totalExpenses) * 100).toFixed(1) : 0;
 
                                     return (
-                                        <div key={item.name} className="transaction-item" style={{ borderBottom: index === finalCategoryData.length - 1 ? 'none' : '1px solid var(--card-border)' }}>
-                                            <div className="t-left">
-                                                <div className="t-icon" style={{ backgroundColor: bg, color: color, borderRadius: '10px' }}>
-                                                    <CatIcon size={20} />
+                                        <div key={item.name} className="category-block" style={{ borderBottom: index === finalCategoryData.length - 1 ? 'none' : '1px solid var(--card-border)', paddingBottom: '1rem', marginBottom: '0.5rem' }}>
+                                            <div className="transaction-item" style={{ borderBottom: 'none', padding: '0.5rem 0', marginBottom: '0.5rem' }}>
+                                                <div className="t-left">
+                                                    <div className="t-icon" style={{ backgroundColor: bg, color: color, borderRadius: '12px', padding: '0.6rem' }}>
+                                                        <CatIcon size={24} />
+                                                    </div>
+                                                    <div className="t-details">
+                                                        <h4 className="t-description" style={{ marginBottom: '2px', fontSize: '1.05rem' }}>{t(CATEGORY_KEYS[item.name])}</h4>
+                                                        <p className="t-meta" style={{ color: 'var(--text-muted)' }}>{formatCurrency(item.value)}</p>
+                                                    </div>
                                                 </div>
-                                                <div className="t-details">
-                                                    <h4 className="t-description" style={{ marginBottom: 0 }}>{t(CATEGORY_KEYS[item.name])}</h4>
-                                                    <p className="t-meta">{percentage}% of total expenses</p>
+                                                <div className="percentage-badge" style={{
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    border: '1px solid var(--card-border)',
+                                                    padding: '0.4rem 0.8rem',
+                                                    borderRadius: '8px',
+                                                    fontWeight: '700',
+                                                    fontSize: '1.1rem',
+                                                    color: 'var(--text-main)',
+                                                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                                }}>
+                                                    {percentage}%
                                                 </div>
                                             </div>
-                                            <span className="t-amount expense">
-                                                {formatCurrency(item.value)}
-                                            </span>
+
+                                            {/* Subcategories Breakdown */}
+                                            {item.subcategories && item.subcategories.length > 0 && (
+                                                <div className="subcategories-list" style={{ paddingLeft: '3.5rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                                    {item.subcategories.map(sub => {
+                                                        const subPercentage = item.value > 0 ? ((sub.value / item.value) * 100).toFixed(1) : 0;
+                                                        const subNameClean = sub.name.includes(' - ') ? sub.name.split(' - ')[1] : sub.name;
+
+                                                        return (
+                                                            <div key={sub.name} className="subcategory-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
+                                                                <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--card-border)' }}></div>
+                                                                    {subNameClean}
+                                                                </span>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                                    <span style={{ color: 'var(--text-main)', opacity: 0.8 }}>{formatCurrency(sub.value)}</span>
+                                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', width: '45px', textAlign: 'right', fontFamily: 'monospace' }}>{subPercentage}%</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}

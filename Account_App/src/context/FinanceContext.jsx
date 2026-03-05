@@ -13,6 +13,7 @@ export const FinanceProvider = ({ children }) => {
     const [transactions, setTransactions] = useState([]);
     const [recurringTransactions, setRecurringTransactions] = useState([]);
     const [goals, setGoals] = useState([]);
+    const [wealthData, setWealthData] = useState(null);
     const [currency, setCurrencyState] = useState('EUR');
     const [language, setLanguageState] = useState('en');
     const [loading, setLoading] = useState(false);
@@ -30,11 +31,12 @@ export const FinanceProvider = ({ children }) => {
 
     const fetchAll = async () => {
         setLoading(true);
-        const [txRes, recRes, goalRes, settingsRes] = await Promise.all([
+        const [txRes, recRes, goalRes, settingsRes, wealthRes] = await Promise.all([
             supabase.from('transactions').select('*').order('created_at', { ascending: false }),
             supabase.from('recurring_transactions').select('*').order('created_at', { ascending: false }),
             supabase.from('goals').select('*').order('created_at', { ascending: false }),
-            supabase.from('user_settings').select('*').maybeSingle()
+            supabase.from('user_settings').select('*').maybeSingle(),
+            supabase.from('user_wealth').select('*').maybeSingle()
         ]);
 
         let loadedTxs = txRes.data || [];
@@ -110,6 +112,13 @@ export const FinanceProvider = ({ children }) => {
                 language: 'en',
                 updated_at: new Date().toISOString()
             });
+        }
+
+        if (wealthRes.data) {
+            setWealthData(wealthRes.data);
+        } else {
+            const { data: cw } = await supabase.from('user_wealth').insert({ user_id: user.id }).select().single();
+            setWealthData(cw || null);
         }
 
         setLoading(false);
@@ -334,6 +343,101 @@ export const FinanceProvider = ({ children }) => {
         return avgSavings * 12;
     };
 
+    // ── Wealth & Intelligence Engine ────────────────────────────────────────
+    const updateWealth = async (patch) => {
+        if (!user || !wealthData?.id) return;
+        const { data, error } = await supabase.from('user_wealth')
+            .update({ ...patch, updated_at: new Date().toISOString() })
+            .eq('id', wealthData.id)
+            .select().single();
+        if (!error && data) setWealthData(data);
+    };
+
+    const getDynamicLiquidCash = () => {
+        if (!wealthData) return 0;
+        const baseCash = Number(wealthData.liquid_cash || 0);
+        const recalibrateDate = wealthData.last_recalibrated_date ? new Date(wealthData.last_recalibrated_date) : new Date(0);
+
+        // Calculate flow since last recalibration
+        const recentTxns = transactions.filter(t => {
+            const txDate = new Date(t.date || t.created_at);
+            return txDate >= recalibrateDate;
+        });
+
+        const incomes = recentTxns.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+        const expenses = recentTxns.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+
+        return baseCash + incomes - expenses;
+    };
+
+    const getBlindSpots = () => {
+        const now = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(now.getDate() - 30);
+
+        // Get expenses in the last 30 days
+        const recentExpenses = transactions.filter(t => t.type === 'expense' && new Date(t.date || t.created_at) >= thirtyDaysAgo);
+
+        const frequencyMap = {};
+        recentExpenses.forEach(t => {
+            // we split the category to check main category or sub
+            const key = t.category || 'General';
+            if (!frequencyMap[key]) frequencyMap[key] = { count: 0, total: 0 };
+            frequencyMap[key].count += 1;
+            frequencyMap[key].total += Number(t.amount);
+        });
+
+        // Filter categories with high freq (>3 times a month) but small individual amounts (<30 average)
+        const spots = Object.entries(frequencyMap)
+            .filter(([k, v]) => v.count >= 3 && (v.total / v.count) < 30)
+            .map(([k, v]) => ({ category: k, count: v.count, total: v.total, avg: v.total / v.count }))
+            .sort((a, b) => b.total - a.total);
+
+        // Also compile active subscriptions
+        const subs = recurringTransactions.filter(r => r.type === 'expense');
+
+        return { smallFrequent: spots, subscriptions: subs };
+    };
+
+    const simulateGoalAffordability = (goalAmount) => {
+        const cash = getDynamicLiquidCash();
+        const newCash = cash - goalAmount;
+
+        // Calculate average monthly survival needs (Housing, Food, Utilities)
+        // Since we have nested categories like "Housing - Alquiler", we match the root
+        const needsCategories = ['Housing', 'Food', 'Utilities', 'Transportation', 'Healthcare'];
+
+        let totalNeedsExpense = 0;
+        // Looking at the last 3 months
+        const now = new Date();
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(now.getDate() - 90);
+
+        const recentNeeds = transactions.filter(t => {
+            if (t.type !== 'expense') return false;
+            const txDate = new Date(t.date || t.created_at);
+            if (txDate < ninetyDaysAgo) return false;
+
+            const rootCat = t.category ? t.category.split(' - ')[0] : '';
+            return needsCategories.includes(rootCat);
+        });
+
+        totalNeedsExpense = recentNeeds.reduce((s, t) => s + Number(t.amount), 0);
+        // Average monthly needs
+        const avgMonthlyNeeds = totalNeedsExpense / 3;
+
+        const currentRunway = avgMonthlyNeeds > 0 ? (cash / avgMonthlyNeeds) : 0;
+        const newRunway = avgMonthlyNeeds > 0 ? (newCash / avgMonthlyNeeds) : 0;
+
+        return {
+            affordable: cash >= goalAmount,
+            remainingCash: newCash,
+            currentRunway,
+            newRunway,
+            pressure: cash > 0 ? (goalAmount / cash) * 100 : 100 // % of liquid cash wiped out
+        };
+    };
+
     // ── Normalise Supabase snake_case keys to camelCase for legacy consumers ─
     // Goals from Supabase use snake_case; the Profile page uses camelCase.
     const normalisedGoals = goals.map(g => ({
@@ -370,6 +474,11 @@ export const FinanceProvider = ({ children }) => {
             t,
             getHistoricalSavings,
             getProjectedAnnualSavings,
+            wealthData,
+            updateWealth,
+            getDynamicLiquidCash,
+            getBlindSpots,
+            simulateGoalAffordability,
             loading
         }}>
             {children}
