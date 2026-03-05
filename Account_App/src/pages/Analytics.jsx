@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { useFinance } from '../context/FinanceContext';
 import { PieChart as ChartIcon, AlertCircle, BarChart2 } from 'lucide-react';
 import { getCategoryConfig, CATEGORY_KEYS } from '../utils/categoryIcons';
+import { predictCategory } from '../utils/smartCategorizer';
 
 export default function Analytics() {
     const { transactions, recurringTransactions, currencySymbol, formatCurrency, t } = useFinance();
@@ -15,8 +16,18 @@ export default function Analytics() {
     ];
 
     const categoryData = allExpenses.reduce((acc, curr) => {
-        const rootCategory = curr.category ? curr.category.split(' - ')[0] : 'General';
-        const subCategory = curr.category ? curr.category : 'General';
+        let processCategory = curr.category || 'General';
+
+        // Dynamic historical remap: if there's no official separator, pass it through AI
+        if (!processCategory.includes(' - ') && processCategory !== 'General') {
+            const prediction = predictCategory(curr.description) || predictCategory(processCategory);
+            if (prediction) {
+                processCategory = `${prediction.category} - ${prediction.subcategory}`;
+            }
+        }
+
+        const rootCategory = processCategory.split(' - ')[0];
+        const subCategory = processCategory;
         const existing = acc.find(item => item.name === rootCategory);
         const amountNum = parseFloat(curr.amount) || 0;
 
@@ -160,26 +171,25 @@ export default function Analytics() {
                                     const percentage = totalExpenses > 0 ? ((item.value / totalExpenses) * 100).toFixed(1) : 0;
 
                                     return (
-                                        <div key={item.name} className="category-block" style={{ borderBottom: index === finalCategoryData.length - 1 ? 'none' : '1px solid var(--card-border)', paddingBottom: '1rem', marginBottom: '0.5rem' }}>
-                                            <div className="transaction-item" style={{ borderBottom: 'none', padding: '0.5rem 0', marginBottom: '0.5rem' }}>
-                                                <div className="t-left">
-                                                    <div className="t-icon" style={{ backgroundColor: bg, color: color, borderRadius: '12px', padding: '0.6rem' }}>
-                                                        <CatIcon size={24} />
+                                        <div key={item.name} className="category-block" style={{ borderBottom: index === finalCategoryData.length - 1 ? 'none' : '1px solid var(--card-border)', paddingBottom: '1.5rem', marginBottom: '1rem' }}>
+                                            <div className="transaction-item analytics-premium-card" style={{ borderBottom: 'none', padding: '1.2rem', marginBottom: '1rem', borderRadius: '16px', background: 'var(--card-bg)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                                                <div className="t-left" style={{ gap: '1.5rem' }}>
+                                                    <div className="t-icon" style={{ backgroundColor: bg, color: color, borderRadius: '16px', padding: '1rem' }}>
+                                                        <CatIcon size={32} />
                                                     </div>
-                                                    <div className="t-details">
-                                                        <h4 className="t-description" style={{ marginBottom: '2px', fontSize: '1.05rem' }}>{t(CATEGORY_KEYS[item.name])}</h4>
-                                                        <p className="t-meta" style={{ color: 'var(--text-muted)' }}>{formatCurrency(item.value)}</p>
+                                                    <div className="t-details" style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                                                        <h4 className="t-description" style={{ marginBottom: 0, fontSize: '1.1rem', color: 'var(--text-muted)' }}>{t(CATEGORY_KEYS[item.name])}</h4>
+                                                        <p className="analytics-huge-amount" style={{ color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800', margin: 0, lineHeight: 1 }}>{formatCurrency(item.value)}</p>
                                                     </div>
                                                 </div>
-                                                <div className="percentage-badge" style={{
-                                                    background: 'rgba(255, 255, 255, 0.05)',
-                                                    border: '1px solid var(--card-border)',
+                                                <div className="percentage-badge sleek-badge" style={{
+                                                    background: bg,
+                                                    color: color,
+                                                    border: `1px solid ${color}40`,
                                                     padding: '0.4rem 0.8rem',
-                                                    borderRadius: '8px',
+                                                    borderRadius: '20px',
                                                     fontWeight: '700',
-                                                    fontSize: '1.1rem',
-                                                    color: 'var(--text-main)',
-                                                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                                    fontSize: '1rem'
                                                 }}>
                                                     {percentage}%
                                                 </div>

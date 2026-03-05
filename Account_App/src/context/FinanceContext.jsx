@@ -273,10 +273,10 @@ export const FinanceProvider = ({ children }) => {
             });
         }
 
-        // Sort by the user's explicit transaction date descending, fallback to created_at
+        // Sort strictly by insertion order (when they were added) descending
         return filtered.sort((a, b) => {
-            const dateA = new Date(a.date || a.created_at);
-            const dateB = new Date(b.date || b.created_at);
+            const dateA = new Date(a.created_at);
+            const dateB = new Date(b.created_at);
             return dateB - dateA;
         });
     };
@@ -285,6 +285,7 @@ export const FinanceProvider = ({ children }) => {
         const regular = getFilteredTransactions(filter);
         const recurring = recurringTransactions.map(r => ({ ...r, isRecurring: true }));
         return [...regular, ...recurring].sort((a, b) => {
+            // Sort by explicit calendar date descending
             const dateA = new Date(a.date || a.start_date || a.created_at);
             const dateB = new Date(b.date || b.start_date || b.created_at);
             return dateB - dateA;

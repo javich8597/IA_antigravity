@@ -17,6 +17,7 @@ export const translations = {
         activeRecurring: "Active Recurring",
         noTransactionsFound: "No transactions found for this period.",
         noRecurringFound: "No recurring items configured yet.",
+        searchTransactions: "Search transaction...",
 
         // Filters
         all: "All",
@@ -138,6 +139,7 @@ export const translations = {
         activeRecurring: "Cobros Recurrentes",
         noTransactionsFound: "No se encontraron transacciones en este periodo.",
         noRecurringFound: "No hay elementos recurrentes configurados aún.",
+        searchTransactions: "Buscar transacción...",
 
         // Filters
         all: "Todo",

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Trash2, Calendar, Repeat, Pencil, Check, X } from 'lucide-react';
+import { Trash2, Calendar, Repeat, Pencil, Check, X, Search } from 'lucide-react';
 import { getCategoryConfig, CATEGORY_KEYS, CATEGORIES, CATEGORY_HIERARCHY } from '../utils/categoryIcons';
 
 export default function TransactionList({ combined = false, title }) {
@@ -16,6 +16,7 @@ export default function TransactionList({ combined = false, title }) {
     } = useFinance();
 
     const [filter, setFilter] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
     const [editingId, setEditingId] = useState(null);
     const [editData, setEditData] = useState({});
 
@@ -24,6 +25,16 @@ export default function TransactionList({ combined = false, title }) {
     // Hide auto-generated recurring items from the "Recent Transactions" view
     if (!combined) {
         transactions = transactions.filter(t => !(t.description && t.description.endsWith('(Auto)')));
+    }
+
+    // Apply Search Filter locally
+    if (combined && searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        transactions = transactions.filter(t =>
+            (t.description && t.description.toLowerCase().includes(query)) ||
+            (t.category && t.category.toLowerCase().includes(query)) ||
+            (t.amount && t.amount.toString().includes(query))
+        );
     }
 
     const formatDate = (dateString) => {
@@ -75,14 +86,47 @@ export default function TransactionList({ combined = false, title }) {
 
     return (
         <div className="list-container glass-panel">
-            <div className="list-header">
-                <h2 className="list-title">{title || t('recentTransactions')}</h2>
-                <div className="filter-tabs">
-                    <button className={`tab-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>{t('all')}</button>
-                    <button className={`tab-btn ${filter === 'daily' ? 'active' : ''}`} onClick={() => setFilter('daily')}>{t('daily')}</button>
-                    <button className={`tab-btn ${filter === 'monthly' ? 'active' : ''}`} onClick={() => setFilter('monthly')}>{t('monthly')}</button>
-                    <button className={`tab-btn ${filter === 'yearly' ? 'active' : ''}`} onClick={() => setFilter('yearly')}>{t('yearly')}</button>
+            <div className="list-header" style={{ flexDirection: 'column', gap: '1rem', alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '1rem' }}>
+                    <h2 className="list-title" style={{ marginBottom: 0 }}>{title || t('recentTransactions')}</h2>
+                    <div className="filter-tabs">
+                        <button className={`tab-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>{t('all')}</button>
+                        <button className={`tab-btn ${filter === 'daily' ? 'active' : ''}`} onClick={() => setFilter('daily')}>{t('daily')}</button>
+                        <button className={`tab-btn ${filter === 'monthly' ? 'active' : ''}`} onClick={() => setFilter('monthly')}>{t('monthly')}</button>
+                        <button className={`tab-btn ${filter === 'yearly' ? 'active' : ''}`} onClick={() => setFilter('yearly')}>{t('yearly')}</button>
+                    </div>
                 </div>
+                {combined && (
+                    <div className="search-bar-container" style={{ position: 'relative', width: '100%' }}>
+                        <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <input
+                            type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder={t('searchTransactions')}
+                            style={{
+                                width: '100%',
+                                padding: '10px 16px 10px 40px',
+                                borderRadius: '12px',
+                                border: '1px solid var(--card-border)',
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                color: 'var(--text-main)',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                transition: 'all 0.2s ease',
+                                fontFamily: 'inherit'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
+                                e.target.style.borderColor = 'var(--text-muted)';
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+                                e.target.style.borderColor = 'var(--card-border)';
+                            }}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Scrollable container — fixed height so the panel doesn't grow */}
@@ -200,7 +244,7 @@ export default function TransactionList({ combined = false, title }) {
                                                 </h4>
                                                 <p className="t-meta">
                                                     {formatCategory(txn.category)}
-                                                    {txn.date ? ` • ${formatDate(txn.date)}` : ''}
+                                                    {(txn.date || txn.start_date || txn.created_at) ? ` • ${formatDate(txn.date || txn.start_date || txn.created_at)}` : ''}
                                                 </p>
                                             </div>
                                         </div>

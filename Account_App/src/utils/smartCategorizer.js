@@ -57,9 +57,14 @@ const KEYWORD_MAP = {
 
     // Transportation
     'gasolina': { category: 'Transportation', subcategory: 'Combustible' },
+    'gasolinera': { category: 'Transportation', subcategory: 'Combustible' },
+    'combustible': { category: 'Transportation', subcategory: 'Combustible' },
+    'estacion de servicio': { category: 'Transportation', subcategory: 'Combustible' },
     'repsol': { category: 'Transportation', subcategory: 'Combustible' },
     'cepsa': { category: 'Transportation', subcategory: 'Combustible' },
     'bp': { category: 'Transportation', subcategory: 'Combustible' },
+    'galp': { category: 'Transportation', subcategory: 'Combustible' },
+    'shell': { category: 'Transportation', subcategory: 'Combustible' },
     'bus': { category: 'Transportation', subcategory: 'Transporte público' },
     'autobus': { category: 'Transportation', subcategory: 'Transporte público' },
     'metro': { category: 'Transportation', subcategory: 'Transporte público' },
