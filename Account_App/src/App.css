@@ -28,9 +28,9 @@
 
 @media (min-width: 1024px) {
   .main-grid {
-    grid-template-columns: 350px 1fr;
+    grid-template-columns: 340px 1fr;
     align-items: start;
-    gap: 3rem;
+    gap: 1rem;
   }
 }
 
@@ -1256,4 +1256,8 @@ select.form-input option {
 
 .light-theme .dropdown-item:hover {
   background: rgba(0, 0, 0, 0.05);
+}
+
+.mt-8 {
+  margin-top: 0.85rem;
 }

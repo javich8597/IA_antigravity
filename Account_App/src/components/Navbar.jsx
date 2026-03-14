@@ -66,9 +66,6 @@ export default function Navbar({ theme, toggleTheme }) {
                 <NavLink to="/analytics" className={({ isActive }) => `nav-link ${isActive ? 'active-nav' : ''}`}>
                     <PieChart size={18} /><span>{t('analytics')}</span>
                 </NavLink>
-                <NavLink to="/recurring" className={({ isActive }) => `nav-link ${isActive ? 'active-nav' : ''}`}>
-                    <Repeat size={18} /><span>{t('recurring')}</span>
-                </NavLink>
                 <NavLink to="/wealth" className={({ isActive }) => `nav-link ${isActive ? 'active-nav' : ''}`}>
                     <TrendingUp size={18} /><span>{t('Wealth')}</span>
                 </NavLink>

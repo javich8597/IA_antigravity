@@ -1,4 +1,8 @@
-import { CATEGORIES } from './categoryIcons';
+import { pipeline, env } from '@xenova/transformers';
+import { CATEGORIES, CATEGORY_HIERARCHY } from './categoryIcons';
+
+// Configure transformers.js for the browser
+env.allowLocalModels = false;
 
 /**
  * Keyword mapping rules for automatic categorization.
@@ -8,161 +12,122 @@ const KEYWORD_MAP = {
     // Housing
     'alquiler': { category: 'Housing', subcategory: 'Alquiler' },
     'hipoteca': { category: 'Housing', subcategory: 'Hipoteca' },
-    'rent': { category: 'Housing', subcategory: 'Alquiler' },
     'comunidad': { category: 'Housing', subcategory: 'Comunidad' },
-    'seguro hogar': { category: 'Housing', subcategory: 'Seguro del Hogar' },
     'ibi': { category: 'Housing', subcategory: 'IBI y Tasas' },
-    'leroy merlin': { category: 'Housing', subcategory: 'Mantenimiento y Reparaciones' },
-    'bricomart': { category: 'Housing', subcategory: 'Mantenimiento y Reparaciones' },
-    'fontanero': { category: 'Housing', subcategory: 'Mantenimiento y Reparaciones' },
-    'muebles': { category: 'Housing', subcategory: 'Mantenimiento y Reparaciones' },
+    'muebles': { category: 'Housing', subcategory: 'Muebles y Decoración' },
+    'ikea': { category: 'Housing', subcategory: 'Muebles y Decoración' },
+    'leroy merlin': { category: 'Housing', subcategory: 'Mantenimiento y Obras' },
+    'bricomart': { category: 'Housing', subcategory: 'Mantenimiento y Obras' },
 
     // Utilities
-    'luz': { category: 'Utilities', subcategory: 'Electricidad' },
-    'iberdrola': { category: 'Utilities', subcategory: 'Electricidad' },
-    'endesa': { category: 'Utilities', subcategory: 'Electricidad' },
-    'energia': { category: 'Utilities', subcategory: 'Electricidad' },
+    'luz': { category: 'Utilities', subcategory: 'Luz' },
+    'iberdrola': { category: 'Utilities', subcategory: 'Luz' },
+    'endesa': { category: 'Utilities', subcategory: 'Luz' },
     'agua': { category: 'Utilities', subcategory: 'Agua' },
     'gas': { category: 'Utilities', subcategory: 'Gas' },
-    'internet': { category: 'Utilities', subcategory: 'Internet' },
-    'wifi': { category: 'Utilities', subcategory: 'Internet' },
-    'movistar': { category: 'Utilities', subcategory: 'Telefonía móvil' },
-    'vodafone': { category: 'Utilities', subcategory: 'Telefonía móvil' },
-    'digi': { category: 'Utilities', subcategory: 'Telefonía móvil' },
-    'orange': { category: 'Utilities', subcategory: 'Telefonía móvil' },
-    'yoigo': { category: 'Utilities', subcategory: 'Telefonía móvil' },
-    'o2': { category: 'Utilities', subcategory: 'Telefonía móvil' },
+    'internet': { category: 'Utilities', subcategory: 'Internet y Fibra' },
+    'movistar': { category: 'Utilities', subcategory: 'Teléfono Móvil' },
+    'vodafone': { category: 'Utilities', subcategory: 'Teléfono Móvil' },
 
     // Food
     'mercadona': { category: 'Food', subcategory: 'Supermercado' },
     'carrefour': { category: 'Food', subcategory: 'Supermercado' },
-    'lidl': { category: 'Food', subcategory: 'Supermercado' },
-    'aldi': { category: 'Food', subcategory: 'Supermercado' },
     'consum': { category: 'Food', subcategory: 'Supermercado' },
     'supermercado': { category: 'Food', subcategory: 'Supermercado' },
-    'fruteria': { category: 'Food', subcategory: 'Supermercado' },
-    'carniceria': { category: 'Food', subcategory: 'Supermercado' },
-    'panaderia': { category: 'Food', subcategory: 'Supermercado' },
-    'restaurante': { category: 'Food', subcategory: 'Restaurantes' },
-    'cena': { category: 'Food', subcategory: 'Restaurantes' },
-    'burger': { category: 'Food', subcategory: 'Restaurantes' },
-    'mcdonalds': { category: 'Food', subcategory: 'Restaurantes' },
-    'kfc': { category: 'Food', subcategory: 'Restaurantes' },
-    'sushi': { category: 'Food', subcategory: 'Restaurantes' },
-    'glovo': { category: 'Food', subcategory: 'Comida a domicilio' },
-    'uber eats': { category: 'Food', subcategory: 'Comida a domicilio' },
-    'just eat': { category: 'Food', subcategory: 'Comida a domicilio' },
-    'cafeteria': { category: 'Food', subcategory: 'Cafeterías' },
-    'cafe': { category: 'Food', subcategory: 'Cafeterías' },
+    'super': { category: 'Food', subcategory: 'Supermercado' },
+    'leche': { category: 'Food', subcategory: 'Supermercado' },
+    'carne': { category: 'Food', subcategory: 'Supermercado' },
+    'fruta': { category: 'Food', subcategory: 'Frutería' },
+    'fruteria': { category: 'Food', subcategory: 'Frutería' },
+    'pan': { category: 'Food', subcategory: 'Panadería' },
+    'panaderia': { category: 'Food', subcategory: 'Panadería' },
+    'carniceria': { category: 'Food', subcategory: 'Carnicería' },
 
     // Transportation
-    'gasolina': { category: 'Transportation', subcategory: 'Combustible' },
-    'gasolinera': { category: 'Transportation', subcategory: 'Combustible' },
-    'combustible': { category: 'Transportation', subcategory: 'Combustible' },
-    'estacion de servicio': { category: 'Transportation', subcategory: 'Combustible' },
-    'repsol': { category: 'Transportation', subcategory: 'Combustible' },
-    'cepsa': { category: 'Transportation', subcategory: 'Combustible' },
-    'bp': { category: 'Transportation', subcategory: 'Combustible' },
-    'galp': { category: 'Transportation', subcategory: 'Combustible' },
-    'shell': { category: 'Transportation', subcategory: 'Combustible' },
-    'bus': { category: 'Transportation', subcategory: 'Transporte público' },
-    'autobus': { category: 'Transportation', subcategory: 'Transporte público' },
-    'metro': { category: 'Transportation', subcategory: 'Transporte público' },
-    'uber': { category: 'Transportation', subcategory: 'Taxi / VTC' },
-    'cabify': { category: 'Transportation', subcategory: 'Taxi / VTC' },
+    'gasolina': { category: 'Transportation', subcategory: 'Gasolina' },
+    'gasolinera': { category: 'Transportation', subcategory: 'Gasolina' },
+    'repsol': { category: 'Transportation', subcategory: 'Gasolina' },
+    'taller': { category: 'Transportation', subcategory: 'Mantenimiento y Taller' },
+    'coche': { category: 'Transportation', subcategory: 'Mantenimiento y Taller' },
+    'bus': { category: 'Transportation', subcategory: 'Transporte Público' },
+    'metro': { category: 'Transportation', subcategory: 'Transporte Público' },
     'taxi': { category: 'Transportation', subcategory: 'Taxi / VTC' },
-    'parking': { category: 'Transportation', subcategory: 'Parking' },
-    'parquimetro': { category: 'Transportation', subcategory: 'Parking' },
-    'peaje': { category: 'Transportation', subcategory: 'Peajes' },
-    'taller': { category: 'Transportation', subcategory: 'Mantenimiento vehículo' },
-    'itv': { category: 'Transportation', subcategory: 'ITV' },
+    'uber': { category: 'Transportation', subcategory: 'Taxi / VTC' },
+    'parking': { category: 'Transportation', subcategory: 'Peajes y Parking' },
 
-    // Travel
-    'vuelo': { category: 'Travel', subcategory: 'Vuelos' },
-    'ryanair': { category: 'Travel', subcategory: 'Vuelos' },
-    'iberia': { category: 'Travel', subcategory: 'Vuelos' },
-    'vueling': { category: 'Travel', subcategory: 'Vuelos' },
-    'renfe': { category: 'Travel', subcategory: 'Trenes / Autobuses' },
-    'ave': { category: 'Travel', subcategory: 'Trenes / Autobuses' },
-    'hotel': { category: 'Travel', subcategory: 'Alojamiento' },
-    'airbnb': { category: 'Travel', subcategory: 'Alojamiento' },
-
-    // Shopping
-    'ropa': { category: 'Shopping', subcategory: 'Ropa y calzado' },
-    'zara': { category: 'Shopping', subcategory: 'Ropa y calzado' },
-    'primark': { category: 'Shopping', subcategory: 'Ropa y calzado' },
-    'zapatillas': { category: 'Shopping', subcategory: 'Ropa y calzado' },
-    'mango': { category: 'Shopping', subcategory: 'Ropa y calzado' },
-    'amazon': { category: 'Shopping', subcategory: 'Electrónica' },
-    'mediamarkt': { category: 'Shopping', subcategory: 'Electrónica' },
-    'apple': { category: 'Shopping', subcategory: 'Electrónica' },
-    'ikea': { category: 'Shopping', subcategory: 'Hogar y decoración' },
-    'regalo': { category: 'Shopping', subcategory: 'Regalos' },
+    // Dining
+    'restaurante': { category: 'Dining', subcategory: 'Restaurantes' },
+    'cena': { category: 'Dining', subcategory: 'Restaurantes' },
+    'bar': { category: 'Dining', subcategory: 'Bares y Pubs' },
+    'cerveza': { category: 'Dining', subcategory: 'Bares y Pubs' },
+    'cafeteria': { category: 'Dining', subcategory: 'Cafetería' },
+    'cafe': { category: 'Dining', subcategory: 'Cafetería' },
+    'glovo': { category: 'Dining', subcategory: 'Comida a Domicilio' },
+    'uber eats': { category: 'Dining', subcategory: 'Comida a Domicilio' },
 
     // Entertainment
-    'netflix': { category: 'Entertainment', subcategory: 'Suscripciones digitales' },
-    'spotify': { category: 'Entertainment', subcategory: 'Suscripciones digitales' },
-    'hbo': { category: 'Entertainment', subcategory: 'Suscripciones digitales' },
-    'prime video': { category: 'Entertainment', subcategory: 'Suscripciones digitales' },
-    'cine': { category: 'Entertainment', subcategory: 'Cine / Teatro / Conciertos' },
-    'concierto': { category: 'Entertainment', subcategory: 'Cine / Teatro / Conciertos' },
+    'cine': { category: 'Entertainment', subcategory: 'Cine y Entradas' },
+    'netflix': { category: 'Entertainment', subcategory: 'Suscripciones Digitales' },
+    'spotify': { category: 'Entertainment', subcategory: 'Suscripciones Digitales' },
     'juego': { category: 'Entertainment', subcategory: 'Videojuegos' },
     'steam': { category: 'Entertainment', subcategory: 'Videojuegos' },
-    'playstation': { category: 'Entertainment', subcategory: 'Videojuegos' },
-    'nintendo': { category: 'Entertainment', subcategory: 'Videojuegos' },
-    'discoteca': { category: 'Entertainment', subcategory: 'Vida nocturna' },
-    'pub': { category: 'Entertainment', subcategory: 'Vida nocturna' },
-    'copas': { category: 'Entertainment', subcategory: 'Vida nocturna' },
-    'cervezas': { category: 'Entertainment', subcategory: 'Vida nocturna' },
+    'libro': { category: 'Entertainment', subcategory: 'Libros y Cultura' },
 
-    // Healthcare & P.C.
+    // Shopping
+    'ropa': { category: 'Shopping', subcategory: 'Ropa y Calzado' },
+    'zara': { category: 'Shopping', subcategory: 'Ropa y Calzado' },
+    'amazon': { category: 'Shopping', subcategory: 'Electrónica' },
+    'regalo': { category: 'Shopping', subcategory: 'Regalos' },
+
+    // Healthcare
     'farmacia': { category: 'Healthcare', subcategory: 'Farmacia' },
-    'medico': { category: 'Healthcare', subcategory: 'Consultas médicas' },
-    'sanitas': { category: 'Healthcare', subcategory: 'Seguro médico' },
-    'adeslas': { category: 'Healthcare', subcategory: 'Seguro médico' },
-    'dentista': { category: 'Healthcare', subcategory: 'Dentista' },
+    'medico': { category: 'Healthcare', subcategory: 'Consultas Médicas' },
+    'sanitas': { category: 'Healthcare', subcategory: 'Seguro Médico' },
     'gimnasio': { category: 'Healthcare', subcategory: 'Gimnasio' },
     'gym': { category: 'Healthcare', subcategory: 'Gimnasio' },
-    'peluqueria': { category: 'Healthcare', subcategory: 'Estética / Peluquería' },
+    'peluqueria': { category: 'Healthcare', subcategory: 'Estética y Peluquería' },
+    'pelu': { category: 'Healthcare', subcategory: 'Estética y Peluquería' },
+    'dentista': { category: 'Healthcare', subcategory: 'Dentista' },
+
+    // Travel
+    'vuelo': { category: 'Travel', subcategory: 'Vuelos y Trenes' },
+    'ryanair': { category: 'Travel', subcategory: 'Vuelos y Trenes' },
+    'hotel': { category: 'Travel', subcategory: 'Hoteles y Alojamiento' },
+    'airbnb': { category: 'Travel', subcategory: 'Hoteles y Alojamiento' },
 
     // Education
-    'universidad': { category: 'Education', subcategory: 'Matrículas' },
-    'curso': { category: 'Education', subcategory: 'Cursos' },
-    'libro': { category: 'Education', subcategory: 'Libros y material' },
-    'ingles': { category: 'Education', subcategory: 'Idiomas' },
+    'universidad': { category: 'Education', subcategory: 'Matrículas y Tasas' },
+    'curso': { category: 'Education', subcategory: 'Cursos y Másters' },
+    'ingles': { category: 'Education', subcategory: 'Clases Particulares' },
 
-    // Finance & Debt
-    'prestamo': { category: 'Finance', subcategory: 'Préstamos personales' },
-    'tarjeta': { category: 'Finance', subcategory: 'Tarjeta de crédito' },
-    'comision': { category: 'Finance', subcategory: 'Comisiones bancarias' },
-    'mantenimiento': { category: 'Finance', subcategory: 'Comisiones bancarias' },
+    // Family
+    'mascota': { category: 'Family', subcategory: 'Mascotas' },
+    'perro': { category: 'Family', subcategory: 'Mascotas' },
+    'veterinario': { category: 'Family', subcategory: 'Veterinario' },
+    'colegio': { category: 'Family', subcategory: 'Guardería y Colegio' },
+    'guarderia': { category: 'Family', subcategory: 'Guardería y Colegio' },
+    'juguete': { category: 'Family', subcategory: 'Gastos Niños' },
+
+    // Finance
+    'comision': { category: 'Finance', subcategory: 'Comisiones Bancarias' },
+    'seguro': { category: 'Finance', subcategory: 'Seguros' },
     'impuesto': { category: 'Finance', subcategory: 'Impuestos' },
-    'gestoria': { category: 'Finance', subcategory: 'Asesoría / Gestoría' },
-
-    // Savings
-    'ahorro': { category: 'Savings', subcategory: 'Cuenta ahorro' },
+    'multa': { category: 'Finance', subcategory: 'Multas' },
+    'prestamo': { category: 'Finance', subcategory: 'Préstamos' },
 
     // Investments
-    'bolsa': { category: 'Investments', subcategory: 'Bolsa / ETFs' },
-    'ticker': { category: 'Investments', subcategory: 'Bolsa / ETFs' },
+    'ahorro': { category: 'Investments', subcategory: 'Traspaso a Ahorros' },
+    'bolsa': { category: 'Investments', subcategory: 'Bolsa y Fondos' },
     'cripto': { category: 'Investments', subcategory: 'Criptomonedas' },
-    'bitcoin': { category: 'Investments', subcategory: 'Criptomonedas' },
-    'binance': { category: 'Investments', subcategory: 'Criptomonedas' },
-    'coinbase': { category: 'Investments', subcategory: 'Criptomonedas' },
 
     // Income
-    'nomina': { category: 'Income', subcategory: 'Salario fijo' },
-    'salario': { category: 'Income', subcategory: 'Salario fijo' },
-    'sueldo': { category: 'Income', subcategory: 'Salario fijo' },
-    'bonus': { category: 'Income', subcategory: 'Bonus' },
-    'paga': { category: 'Income', subcategory: 'Bonus' },
-    'venta': { category: 'Income', subcategory: 'Venta de activos' },
-    'wallapop': { category: 'Income', subcategory: 'Venta de activos' },
-    'vinted': { category: 'Income', subcategory: 'Venta de activos' },
+    'nomina': { category: 'Income', subcategory: 'Nómina' },
+    'salario': { category: 'Income', subcategory: 'Nómina' },
+    'venta': { category: 'Income', subcategory: 'Extras y Bonos' },
     'devolucion': { category: 'Income', subcategory: 'Devoluciones' },
 
     // Internal
-    'bizum': { category: 'Internal', subcategory: 'Transferencias entre cuentas' },
+    'bizum': { category: 'Internal', subcategory: 'Ajustes manuales' },
     'transferencia': { category: 'Internal', subcategory: 'Transferencias entre cuentas' }
 };
 
@@ -201,6 +166,23 @@ export function predictCategory(description) {
 
     const text = normalizeText(description);
 
+    // --- V22: USER MEMORY CHECK ---
+    try {
+        const memStr = localStorage.getItem('user_categorizer_memory');
+        if (memStr) {
+            const mem = JSON.parse(memStr);
+            const savedCategory = mem[text];
+            if (savedCategory && CATEGORIES.includes(savedCategory.split(' - ')[0])) {
+                const root = savedCategory.split(' - ')[0];
+                const sub = savedCategory.split(' - ')[1] || '';
+                return { category: root, subcategory: sub };
+            }
+        }
+    } catch (e) {
+        console.error("Failed to read user memory", e);
+    }
+    // ------------------------------
+
     for (const { key, result } of SORTED_KEYWORDS) {
         // Enforce word boundaries around the matched keyword.
         // (^|[^a-z0-9]) ensures the match either starts at the beginning or after a non-alphanumeric character (like space, punctuation).
@@ -213,6 +195,117 @@ export function predictCategory(description) {
                 return result;
             }
         }
+    }
+
+    return null;
+}
+
+// ----------------------------------------------------------------------
+// V21: AI-POWERED CATEGORIZATION (TRANSFORMERS.JS)
+// ----------------------------------------------------------------------
+
+const AI_MODEL = 'Xenova/distilbert-base-uncased-mnli';
+let categorizerPipeline = null;
+let isModelLoading = false;
+export let isModelReady = false;
+
+/**
+ * Initializes the AI model in the background.
+ * Uses a singleton pattern so it only loads once context-wide.
+ */
+export async function initAIModel() {
+    if (categorizerPipeline) return categorizerPipeline;
+    if (isModelLoading) return null;
+
+    try {
+        isModelLoading = true;
+        // The first time this runs, it will download ~30MB from the Hugging Face CDN
+        categorizerPipeline = await pipeline('zero-shot-classification', AI_MODEL, {
+            // Options to optimize for browser:
+            quantized: true
+        });
+        isModelReady = true;
+        isModelLoading = false;
+        console.log("Semantic Categorizer AI loaded successfully.");
+        return categorizerPipeline;
+    } catch (e) {
+        console.error("Error loading AI model:", e);
+        isModelLoading = false;
+        return null;
+    }
+}
+
+/**
+ * Spanish translation map for the candidate labels.
+ * We pass these to the model to bridge the gap for Spanish inputs,
+ * then map the winning Spanish phrase back to our internal English category.
+ */
+const AI_SPANISH_LABELS = {
+    'Vivienda y Alquiler': 'Housing',
+    'Suministros y Facturas': 'Utilities',
+    'Mercado y Alimentación': 'Food',
+    'Transporte y Gasolina': 'Transportation',
+    'Restaurantes y Cenas': 'Dining',
+    'Ocio y Entretenimiento': 'Entertainment',
+    'Compras Locales y Ropa': 'Shopping',
+    'Salud, Gimnasio y Farmacia': 'Healthcare',
+    'Viajes y Vacaciones': 'Travel',
+    'Educación y Cursos': 'Education',
+    'Familia y Mascotas': 'Family',
+    'Finanzas e Impuestos': 'Finance',
+    'Asignación a Inversiones': 'Investments',
+    'Nómina e Ingresos': 'Income',
+    'Movimientos Internos': 'Internal'
+};
+const CANDIDATE_LABELS_ES = Object.keys(AI_SPANISH_LABELS);
+
+/**
+ * AI-powered zero-shot classification fallback.
+ * Validates against precise semantic meaning rather than hardcoded keywords.
+ * @param {string} description The user input description
+ * @returns {Promise<object|null>} { category, subcategory } or null
+ */
+export async function predictCategoryAI(description) {
+    if (!description || description.trim() === '') return null;
+
+    // 1. First try the instant keyword matching (0ms overhead)
+    const manualResult = predictCategory(description);
+    if (manualResult) return manualResult;
+
+    // 2. Fallback to AI (requires model to be initialized)
+    // If not loaded yet, just start the load process in background and return null for now
+    // to avoid blocking UI heavily on first ever type.
+    if (!categorizerPipeline) {
+        initAIModel();
+        return null;
+    }
+
+    try {
+        // Enriched Prompt: Give the English-native AI context so it understands short words
+        const enrichedPrompt = `This is a financial expense. I spent money on: ${description}`;
+
+        // Zero-shot classification prompt using SPANISH candidate labels for semantic matching
+        const result = await categorizerPipeline(enrichedPrompt, CANDIDATE_LABELS_ES, {
+            multi_label: false
+        });
+
+        if (result && result.labels && result.labels.length > 0) {
+            const topLabelES = result.labels[0];
+            const topScore = result.scores[0];
+
+            // If confidence is too low, ignore it to avoid totally random guesses
+            if (topScore < 0.25) return null;
+
+            // Map the winning Spanish label back to our English root category
+            const topCategoryEN = AI_SPANISH_LABELS[topLabelES];
+            if (!topCategoryEN) return null;
+
+            // Pick the default subcategory for this detected root category
+            const subcategory = CATEGORY_HIERARCHY[topCategoryEN][0];
+            return { category: topCategoryEN, subcategory };
+        }
+    } catch (e) {
+        console.error("AI Prediction error:", e);
     }
 
     return null;

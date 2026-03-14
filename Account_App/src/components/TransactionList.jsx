@@ -16,7 +16,9 @@ export default function TransactionList({ combined = false, title }) {
     } = useFinance();
 
     const [filter, setFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [editData, setEditData] = useState({});
 
@@ -35,6 +37,11 @@ export default function TransactionList({ combined = false, title }) {
             (t.category && t.category.toLowerCase().includes(query)) ||
             (t.amount && t.amount.toString().includes(query))
         );
+    }
+
+    // Apply Type Filter locally
+    if (combined && typeFilter !== 'all') {
+        transactions = transactions.filter(t => t.type === typeFilter);
     }
 
     const formatDate = (dateString) => {
@@ -86,47 +93,90 @@ export default function TransactionList({ combined = false, title }) {
 
     return (
         <div className="list-container glass-panel">
-            <div className="list-header" style={{ flexDirection: 'column', gap: '1rem', alignItems: 'stretch' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h2 className="list-title" style={{ marginBottom: 0 }}>{title || t('recentTransactions')}</h2>
-                    <div className="filter-tabs">
-                        <button className={`tab-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>{t('all')}</button>
-                        <button className={`tab-btn ${filter === 'daily' ? 'active' : ''}`} onClick={() => setFilter('daily')}>{t('daily')}</button>
-                        <button className={`tab-btn ${filter === 'monthly' ? 'active' : ''}`} onClick={() => setFilter('monthly')}>{t('monthly')}</button>
-                        <button className={`tab-btn ${filter === 'yearly' ? 'active' : ''}`} onClick={() => setFilter('yearly')}>{t('yearly')}</button>
+            <div className="list-header" style={{ flexDirection: 'column', gap: '0.20rem', alignItems: 'stretch', marginBottom: '0.85rem' }}>
+                {/* Row 1: Filters */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div className="filter-tabs" style={{ marginLeft: '-12px' }}>
+                        <button className={`tab-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>{t('all')}</button>
+                        <button className={`tab-btn ${filter === 'daily' ? 'active' : ''}`} onClick={() => setFilter('daily')} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>{t('daily')}</button>
+                        <button className={`tab-btn ${filter === 'monthly' ? 'active' : ''}`} onClick={() => setFilter('monthly')} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>{t('monthly')}</button>
+                        <button className={`tab-btn ${filter === 'yearly' ? 'active' : ''}`} onClick={() => setFilter('yearly')} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>{t('yearly')}</button>
                     </div>
+                    {combined && (
+                        <div className="filter-tabs">
+                            <button className={`tab-btn ${typeFilter === 'all' ? 'active' : ''}`} onClick={() => setTypeFilter('all')} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>{t('all')}</button>
+                            <button
+                                className={`tab-btn ${typeFilter === 'income' ? 'active' : ''}`}
+                                onClick={() => setTypeFilter('income')}
+                                style={typeFilter === 'income'
+                                    ? { padding: '4px 10px', fontSize: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)', border: '1px solid rgba(16, 185, 129, 0.3)' }
+                                    : { padding: '4px 10px', fontSize: '0.75rem' }
+                                }
+                            >
+                                {t('income')}
+                            </button>
+                            <button
+                                className={`tab-btn ${typeFilter === 'expense' ? 'active' : ''}`}
+                                onClick={() => setTypeFilter('expense')}
+                                style={typeFilter === 'expense'
+                                    ? { padding: '4px 10px', fontSize: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.3)' }
+                                    : { padding: '4px 10px', fontSize: '0.75rem' }
+                                }
+                            >
+                                {t('expenses')}
+                            </button>
+                        </div>
+                    )}
                 </div>
-                {combined && (
-                    <div className="search-bar-container" style={{ position: 'relative', width: '100%' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                        <input
-                            type="search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder={t('searchTransactions')}
+
+                {/* Row 2: Title & Search */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', flexWrap: 'wrap' }}>
+                    <h2 className="list-title" style={{ marginBottom: 0 }}>{title || t('recentTransactions')}</h2>
+                    {combined && (
+                        <div
+                            className="search-bar-container"
                             style={{
-                                width: '100%',
-                                padding: '10px 16px 10px 40px',
-                                borderRadius: '12px',
-                                border: '1px solid var(--card-border)',
-                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                color: 'var(--text-main)',
-                                fontSize: '0.9rem',
-                                outline: 'none',
-                                transition: 'all 0.2s ease',
-                                fontFamily: 'inherit'
+                                position: 'relative',
+                                width: (isSearchFocused || searchQuery) ? '100%' : '36px',
+                                maxWidth: (isSearchFocused || searchQuery) ? '240px' : '36px',
+                                height: '36px',
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                overflow: 'hidden',
+                                borderRadius: '18px',
+                                backgroundColor: (isSearchFocused || searchQuery) ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+                                border: (isSearchFocused || searchQuery) ? '1px solid var(--card-border)' : '1px solid transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                cursor: (isSearchFocused || searchQuery) ? 'text' : 'pointer'
                             }}
-                            onFocus={(e) => {
-                                e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
-                                e.target.style.borderColor = 'var(--text-muted)';
-                            }}
-                            onBlur={(e) => {
-                                e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
-                                e.target.style.borderColor = 'var(--card-border)';
-                            }}
-                        />
-                    </div>
-                )}
+                        >
+                            <div style={{
+                                position: 'absolute', left: 0, top: 0, width: '36px', height: '36px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                pointerEvents: 'none', zIndex: 2
+                            }}>
+                                <Search size={16} color={(isSearchFocused || searchQuery) ? 'var(--text-main)' : 'var(--text-muted)'} style={{ transition: 'color 0.3s ease' }} />
+                            </div>
+                            <input
+                                type="search"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder={t('searchTransactions')}
+                                onFocus={() => setIsSearchFocused(true)}
+                                onBlur={() => setIsSearchFocused(false)}
+                                style={{
+                                    width: '100%', height: '100%',
+                                    padding: '0 16px 0 36px',
+                                    border: 'none', background: 'transparent',
+                                    color: 'var(--text-main)', fontSize: '0.9rem',
+                                    outline: 'none',
+                                    fontFamily: 'inherit',
+                                    cursor: 'inherit'
+                                }}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Scrollable container — fixed height so the panel doesn't grow */}
@@ -140,6 +190,8 @@ export default function TransactionList({ combined = false, title }) {
                     transactions.map(txn => {
                         const { icon: CatIcon, color, bg } = getCategoryConfig(txn.category);
                         const isEditing = editingId === txn.id;
+                        const isAutoGenerated = txn.description && txn.description.toUpperCase().includes('(AUTO)');
+                        const isVisuallyRecurring = txn.isRecurring || isAutoGenerated;
 
                         return (
                             <div key={txn.id} className="transaction-item" style={isEditing ? { flexDirection: 'column', alignItems: 'stretch', gap: '1rem', padding: '1.25rem', overflow: 'visible', zIndex: 10 } : {}}>
@@ -236,7 +288,7 @@ export default function TransactionList({ combined = false, title }) {
                                             <div className="t-details">
                                                 <h4 className="t-description">
                                                     {txn.description}
-                                                    {txn.isRecurring && (
+                                                    {isVisuallyRecurring && (
                                                         <span style={{ marginLeft: '6px', fontSize: '0.65em', backgroundColor: 'rgba(99,102,241,0.12)', color: '#818cf8', padding: '1px 5px', borderRadius: '4px', verticalAlign: 'middle' }}>
                                                             <Repeat size={8} style={{ display: 'inline', marginRight: '2px' }} />rec
                                                         </span>
@@ -244,7 +296,7 @@ export default function TransactionList({ combined = false, title }) {
                                                 </h4>
                                                 <p className="t-meta">
                                                     {formatCategory(txn.category)}
-                                                    {(txn.date || txn.start_date || txn.created_at) ? ` • ${formatDate(txn.date || txn.start_date || txn.created_at)}` : ''}
+                                                    {(txn.date || txn.next_date || txn.start_date || txn.created_at) ? ` • ${txn.isRecurring ? 'Upcoming: ' : ''}${formatDate(txn.date || txn.next_date || txn.start_date || txn.created_at)}` : ''}
                                                 </p>
                                             </div>
                                         </div>
@@ -252,12 +304,12 @@ export default function TransactionList({ combined = false, title }) {
                                         {/* Centre-right: amount */}
                                         <span className={`t-amount ${txn.type}`}>
                                             {txn.type === 'income' ? '+' : '-'} {formatCurrency(txn.amount)}
-                                            {txn.isRecurring && <span style={{ fontSize: '0.7em', marginLeft: '2px', opacity: 0.7 }}>{getFrequencyLabel(txn.frequency)}</span>}
+                                            {isVisuallyRecurring && <span style={{ fontSize: '0.7em', marginLeft: '2px', opacity: 0.7 }}>{getFrequencyLabel(txn.frequency || 'monthly')}</span>}
                                         </span>
 
                                         {/* Far right: edit + delete stacked */}
                                         <div className="t-buttons">
-                                            {!txn.isRecurring && (
+                                            {!isVisuallyRecurring && (
                                                 <button
                                                     onClick={() => startEdit(txn)}
                                                     className="delete-btn"

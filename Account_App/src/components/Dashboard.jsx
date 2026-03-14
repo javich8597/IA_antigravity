@@ -3,7 +3,7 @@ import { useFinance } from '../context/FinanceContext';
 import TransactionList from './TransactionList';
 
 export default function Dashboard() {
-    const { calculateTotals, recurringTransactions, deleteRecurringTransaction, formatCurrency, getFrequencyLabel, t } = useFinance();
+    const { user, calculateTotals, recurringTransactions, deleteRecurringTransaction, formatCurrency, getFrequencyLabel, t } = useFinance();
     const { totalIncome: income, totalExpenses: expense, balance } = calculateTotals();
 
     return (

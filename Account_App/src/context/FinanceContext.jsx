@@ -97,6 +97,28 @@ export const FinanceProvider = ({ children }) => {
             console.error('Error auto-processing recurring tx:', err);
         }
         // ----------------------------------
+        // --- CATEGORY MIGRATION (V23) ---
+        // Seamlessly maps old legacy category names to the new 14-root structure
+        const migrateCategory = (cat) => {
+            if (!cat) return 'Internal - Ajustes manuales';
+            const root = cat.split(' - ')[0];
+            const sub = cat.split(' - ')[1] || '';
+
+            if (root === 'Salary') return 'Income - ' + (sub || 'Nómina');
+            if (root === 'Savings') return 'Investments - ' + (sub || 'Traspaso a Ahorros');
+            if (root === 'General' || root === 'Other') return 'Internal - Ajustes manuales';
+
+            if (root === 'Food') {
+                if (sub.includes('Restaurante')) return 'Dining - Restaurantes';
+                if (sub.includes('domicilio')) return 'Dining - Comida a Domicilio';
+                if (sub.includes('Cafetería') || sub.includes('Snack')) return 'Dining - Cafetería';
+            }
+            return cat;
+        };
+
+        loadedTxs = loadedTxs.map(tx => ({ ...tx, category: migrateCategory(tx.category) }));
+        loadedRecs = loadedRecs.map(r => ({ ...r, category: migrateCategory(r.category) }));
+        // --------------------------------
 
         setTransactions(loadedTxs);
         setRecurringTransactions(loadedRecs);
@@ -171,9 +193,30 @@ export const FinanceProvider = ({ children }) => {
         return map[freq] || `/${freq}`;
     };
 
+    // ── V22: User Memory Engine ─────────────────────────────────────────────
+    const saveToUserMemory = (description, category) => {
+        if (!description || !category) return;
+        const nDesc = description.trim().toLowerCase();
+        if (nDesc.length < 2) return;
+
+        try {
+            const memStr = localStorage.getItem('user_categorizer_memory');
+            const mem = memStr ? JSON.parse(memStr) : {};
+            mem[nDesc] = category;
+            localStorage.setItem('user_categorizer_memory', JSON.stringify(mem));
+        } catch (e) {
+            console.error("Memory learning failed", e);
+        }
+    };
+
     // ── Transactions CRUD ───────────────────────────────────────────────────
     const addTransaction = async (transaction) => {
         if (!user) return;
+
+        if (transaction.description && transaction.category) {
+            saveToUserMemory(transaction.description, transaction.category);
+        }
+
         const { data, error } = await supabase.from('transactions').insert({
             user_id: user.id,
             description: transaction.description,
@@ -191,6 +234,10 @@ export const FinanceProvider = ({ children }) => {
     };
 
     const updateTransaction = async (id, updatedFields) => {
+        if (updatedFields.description && updatedFields.category) {
+            saveToUserMemory(updatedFields.description, updatedFields.category);
+        }
+
         const { data, error } = await supabase.from('transactions')
             .update({ ...updatedFields, amount: parseFloat(updatedFields.amount) })
             .eq('id', id)
@@ -283,11 +330,10 @@ export const FinanceProvider = ({ children }) => {
 
     const getAllCombinedTransactions = (filter = 'all') => {
         const regular = getFilteredTransactions(filter);
-        const recurring = recurringTransactions.map(r => ({ ...r, isRecurring: true }));
-        return [...regular, ...recurring].sort((a, b) => {
+        return regular.sort((a, b) => {
             // Sort by explicit calendar date descending
-            const dateA = new Date(a.date || a.start_date || a.created_at);
-            const dateB = new Date(b.date || b.start_date || b.created_at);
+            const dateA = new Date(a.date || a.created_at);
+            const dateB = new Date(b.date || b.created_at);
             return dateB - dateA;
         });
     };
