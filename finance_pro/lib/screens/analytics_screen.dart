@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../providers/finance_provider.dart';
+import '../providers/analytics_provider.dart';
 import '../theme.dart';
 
 class AnalyticsScreen extends ConsumerWidget {
@@ -12,18 +12,9 @@ class AnalyticsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(financeSummaryProvider);
+    final data = ref.watch(analyticsDataProvider);
+    final period = ref.watch(analyticsPeriodProvider);
     final fmt = NumberFormat.currency(symbol: '€', decimalDigits: 2);
-
-    // Group expenses by category
-    final categoryTotals = <String, double>{};
-    for (final tx in state.transactions.where((t) => t.type == 'expense')) {
-      final cat = tx.category.split(' - ').first;
-      categoryTotals[cat] = (categoryTotals[cat] ?? 0) + tx.amount;
-    }
-
-    final sortedCategories = categoryTotals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
 
     final colors = [
       const Color(0xFF6366F1), const Color(0xFFA855F7), const Color(0xFFEC4899),
@@ -55,20 +46,84 @@ class AnalyticsScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Income vs Expenses cards
+              // ── Period Filter Chips ──────────────────────────
+              _buildPeriodFilter(ref, period),
+              const SizedBox(height: 20),
+
+              // ── Summary Cards ───────────────────────────────
               Row(
                 children: [
-                  Expanded(child: _buildMiniCard('Ingresos', fmt.format(state.totalIncome), AppColors.success, LucideIcons.arrowUpCircle)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildMiniCard('Gastos', fmt.format(state.totalExpenses), AppColors.danger, LucideIcons.arrowDownCircle)),
+                  Expanded(child: _buildMiniCard('Ingresos', fmt.format(data.totalIncome), AppColors.success, LucideIcons.arrowUpCircle)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildMiniCard('Gastos', fmt.format(data.totalExpenses), AppColors.danger, LucideIcons.arrowDownCircle)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildMiniCard('Balance', fmt.format(data.totalIncome - data.totalExpenses),
+                    (data.totalIncome - data.totalExpenses) >= 0 ? AppColors.accentColor : AppColors.danger,
+                    LucideIcons.scale)),
                 ],
               ),
               const SizedBox(height: 24),
 
-              // Pie chart
-              if (sortedCategories.isNotEmpty) ...[
+              // ── Trend Line Chart ────────────────────────────
+              if (data.monthlyTrend.length >= 2) ...[
+                _buildGlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(LucideIcons.trendingUp, size: 16, color: AppColors.accentColor),
+                          const SizedBox(width: 8),
+                          const Text('Tendencia Mensual', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textMain)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          _buildLegendDot(AppColors.success, 'Ingresos'),
+                          const SizedBox(width: 16),
+                          _buildLegendDot(AppColors.danger, 'Gastos'),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 200,
+                        child: _buildTrendLineChart(data),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // ── Monthly Comparison Bar Chart ────────────────
+              if (data.monthlyTrend.isNotEmpty) ...[
+                _buildGlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(LucideIcons.barChart3, size: 16, color: AppColors.accentPurple),
+                          const SizedBox(width: 8),
+                          const Text('Comparación Mensual', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textMain)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 200,
+                        child: _buildBarChart(data),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // ── Pie Chart ───────────────────────────────────
+              if (data.categoryBreakdown.isNotEmpty) ...[
                 _buildGlassPanel(
                   child: Column(
                     children: [
@@ -80,14 +135,11 @@ class AnalyticsScreen extends ConsumerWidget {
                           PieChartData(
                             sectionsSpace: 3,
                             centerSpaceRadius: 50,
-                            sections: sortedCategories.asMap().entries.map((e) {
-                              final idx = e.key;
-                              final entry = e.value;
-                              final pct = state.totalExpenses > 0 ? (entry.value / state.totalExpenses * 100) : 0.0;
+                            sections: data.categoryBreakdown.asMap().entries.map((e) {
                               return PieChartSectionData(
-                                value: entry.value,
-                                title: '${pct.toStringAsFixed(0)}%',
-                                color: colors[idx % colors.length],
+                                value: e.value.amount,
+                                title: '${e.value.percentage.toStringAsFixed(0)}%',
+                                color: colors[e.key % colors.length],
                                 radius: 55,
                                 titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                               );
@@ -96,16 +148,15 @@ class AnalyticsScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Legend
                       Wrap(
                         spacing: 12, runSpacing: 8,
-                        children: sortedCategories.asMap().entries.map((e) {
+                        children: data.categoryBreakdown.asMap().entries.map((e) {
                           return Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(width: 10, height: 10, decoration: BoxDecoration(color: colors[e.key % colors.length], shape: BoxShape.circle)),
                               const SizedBox(width: 6),
-                              Text(e.value.key, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                              Text(e.value.name, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
                             ],
                           );
                         }).toList(),
@@ -115,17 +166,16 @@ class AnalyticsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Category breakdown
+                // ── Category Breakdown (Enhanced with progress bars) ──
                 _buildGlassPanel(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('Desglose Detallado', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textMain)),
                       const SizedBox(height: 16),
-                      ...sortedCategories.asMap().entries.map((e) {
+                      ...data.categoryBreakdown.asMap().entries.map((e) {
                         final idx = e.key;
                         final entry = e.value;
-                        final pct = state.totalExpenses > 0 ? (entry.value / state.totalExpenses * 100) : 0.0;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: Row(
@@ -136,19 +186,19 @@ class AnalyticsScreen extends ConsumerWidget {
                                   color: colors[idx % colors.length].withAlpha(25),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: Icon(_getCategoryIcon(entry.key), size: 18, color: colors[idx % colors.length]),
+                                child: Icon(_getCategoryIcon(entry.name), size: 18, color: colors[idx % colors.length]),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.textMain)),
+                                    Text(entry.name, style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.textMain)),
                                     const SizedBox(height: 4),
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(4),
                                       child: LinearProgressIndicator(
-                                        value: pct / 100,
+                                        value: entry.percentage / 100,
                                         backgroundColor: AppColors.cardBorder,
                                         valueColor: AlwaysStoppedAnimation(colors[idx % colors.length]),
                                         minHeight: 4,
@@ -161,8 +211,8 @@ class AnalyticsScreen extends ConsumerWidget {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  Text(fmt.format(entry.value), style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textMain)),
-                                  Text('${pct.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                  Text(fmt.format(entry.amount), style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textMain)),
+                                  Text('${entry.percentage.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                                 ],
                               ),
                             ],
@@ -174,13 +224,38 @@ class AnalyticsScreen extends ConsumerWidget {
                 ),
               ] else
                 _buildGlassPanel(
-                  child: const Center(
+                  child: Center(
                     child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: Text('No hay suficientes datos para generar gráficos.', style: TextStyle(color: AppColors.textMuted)),
+                      padding: const EdgeInsets.all(40),
+                      child: Column(
+                        children: [
+                          Icon(LucideIcons.barChart3, size: 48, color: AppColors.textMuted.withAlpha(100)),
+                          const SizedBox(height: 12),
+                          const Text('No hay suficientes datos para generar gráficos.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.textMuted)),
+                          const SizedBox(height: 4),
+                          const Text('Añade transacciones desde el Dashboard.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
+
+              // ── Averages Row ────────────────────────────────
+              if (data.monthlyTrend.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(child: _buildMiniCard('Promedio Ingresos/mes', fmt.format(data.avgMonthlyIncome), AppColors.success, LucideIcons.calculator)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _buildMiniCard('Promedio Gastos/mes', fmt.format(data.avgMonthlyExpense), AppColors.danger, LucideIcons.calculator)),
+                  ],
+                ),
+              ],
+
               const SizedBox(height: 80),
             ],
           ),
@@ -189,34 +264,238 @@ class AnalyticsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMiniCard(String label, String value, Color color, IconData icon) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.cardBg.withAlpha(180),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.cardBorder),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                    Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
-                  ],
+  // ── Period Filter ──────────────────────────────────────
+  Widget _buildPeriodFilter(WidgetRef ref, AnalyticsPeriod current) {
+    final items = [
+      (AnalyticsPeriod.month, 'Mes'),
+      (AnalyticsPeriod.quarter, 'Trimestre'),
+      (AnalyticsPeriod.year, 'Año'),
+      (AnalyticsPeriod.all, 'Todo'),
+    ];
+
+    return Row(
+      children: items.map((item) {
+        final isActive = current == item.$1;
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: GestureDetector(
+            onTap: () => ref.read(analyticsPeriodProvider.notifier).state = item.$1,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isActive ? AppColors.accentColor.withAlpha(38) : AppColors.cardBg.withAlpha(160),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isActive ? AppColors.accentColor : AppColors.cardBorder,
                 ),
               ),
-            ],
+              child: Text(
+                item.$2,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? AppColors.accentLight : AppColors.textMuted,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ── Trend Line Chart ───────────────────────────────────
+  Widget _buildTrendLineChart(AnalyticsData data) {
+    final months = data.monthlyTrend;
+    final maxVal = months.fold(0.0, (max, m) {
+      final mMax = m.income > m.expense ? m.income : m.expense;
+      return mMax > max ? mMax : max;
+    });
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: maxVal > 0 ? maxVal / 4 : 1,
+          getDrawingHorizontalLine: (value) => FlLine(color: AppColors.cardBorder, strokeWidth: 0.5),
+        ),
+        titlesData: FlTitlesData(
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 24,
+              getTitlesWidget: (value, meta) {
+                final idx = value.toInt();
+                if (idx < 0 || idx >= months.length) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    DateFormat('MMM').format(months[idx].month),
+                    style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                  ),
+                );
+              },
+            ),
           ),
         ),
+        borderData: FlBorderData(show: false),
+        minX: 0,
+        maxX: (months.length - 1).toDouble(),
+        minY: 0,
+        maxY: maxVal * 1.15,
+        lineBarsData: [
+          // Income line
+          LineChartBarData(
+            spots: months.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.income)).toList(),
+            isCurved: true,
+            color: AppColors.success,
+            barWidth: 2.5,
+            dotData: FlDotData(show: months.length <= 12),
+            belowBarData: BarAreaData(show: true, color: AppColors.success.withAlpha(20)),
+          ),
+          // Expense line
+          LineChartBarData(
+            spots: months.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.expense)).toList(),
+            isCurved: true,
+            color: AppColors.danger,
+            barWidth: 2.5,
+            dotData: FlDotData(show: months.length <= 12),
+            belowBarData: BarAreaData(show: true, color: AppColors.danger.withAlpha(20)),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                final label = spot.barIndex == 0 ? 'Ing' : 'Gas';
+                return LineTooltipItem(
+                  '$label: €${spot.y.toStringAsFixed(0)}',
+                  TextStyle(color: spot.barIndex == 0 ? AppColors.success : AppColors.danger, fontSize: 12, fontWeight: FontWeight.w600),
+                );
+              }).toList();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Bar Chart ──────────────────────────────────────────
+  Widget _buildBarChart(AnalyticsData data) {
+    final months = data.monthlyTrend;
+    final maxVal = months.fold(0.0, (max, m) {
+      final mMax = m.income > m.expense ? m.income : m.expense;
+      return mMax > max ? mMax : max;
+    });
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: maxVal * 1.15,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: maxVal > 0 ? maxVal / 4 : 1,
+          getDrawingHorizontalLine: (value) => FlLine(color: AppColors.cardBorder, strokeWidth: 0.5),
+        ),
+        titlesData: FlTitlesData(
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 24,
+              getTitlesWidget: (value, meta) {
+                final idx = value.toInt();
+                if (idx < 0 || idx >= months.length) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    DateFormat('MMM').format(months[idx].month),
+                    style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: months.asMap().entries.map((e) {
+          return BarChartGroupData(
+            x: e.key,
+            barRods: [
+              BarChartRodData(
+                toY: e.value.income,
+                color: AppColors.success,
+                width: 10,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              ),
+              BarChartRodData(
+                toY: e.value.expense,
+                color: AppColors.danger,
+                width: 10,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              ),
+            ],
+          );
+        }).toList(),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final label = rodIndex == 0 ? 'Ingresos' : 'Gastos';
+              return BarTooltipItem(
+                '$label\n€${rod.toY.toStringAsFixed(0)}',
+                TextStyle(color: rodIndex == 0 ? AppColors.success : AppColors.danger, fontSize: 12, fontWeight: FontWeight.w600),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Helpers ─────────────────────────────────────────────
+  Widget _buildLegendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+      ],
+    );
+  }
+
+  Widget _buildMiniCard(String label, String value, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg.withAlpha(160),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 14),
+              const SizedBox(width: 6),
+              Flexible(child: Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted), overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
+          ),
+        ],
       ),
     );
   }
@@ -242,13 +521,15 @@ class AnalyticsScreen extends ConsumerWidget {
 
   IconData _getCategoryIcon(String category) {
     final cat = category.toLowerCase();
-    if (cat.contains('food') || cat.contains('dining')) return LucideIcons.utensils;
-    if (cat.contains('transport') || cat.contains('gas')) return LucideIcons.car;
-    if (cat.contains('housing')) return LucideIcons.home;
-    if (cat.contains('health')) return LucideIcons.heartPulse;
-    if (cat.contains('entertainment')) return LucideIcons.film;
-    if (cat.contains('shopping')) return LucideIcons.shoppingBag;
-    if (cat.contains('income') || cat.contains('salary')) return LucideIcons.banknote;
+    if (cat.contains('food') || cat.contains('comida') || cat.contains('dining')) return LucideIcons.utensils;
+    if (cat.contains('transport') || cat.contains('gas') || cat.contains('coche')) return LucideIcons.car;
+    if (cat.contains('housing') || cat.contains('vivienda') || cat.contains('alquiler')) return LucideIcons.home;
+    if (cat.contains('health') || cat.contains('salud') || cat.contains('seguro')) return LucideIcons.heartPulse;
+    if (cat.contains('entertainment') || cat.contains('ocio') || cat.contains('cine')) return LucideIcons.film;
+    if (cat.contains('shopping') || cat.contains('ropa') || cat.contains('compra')) return LucideIcons.shoppingBag;
+    if (cat.contains('income') || cat.contains('salary') || cat.contains('nómina')) return LucideIcons.banknote;
+    if (cat.contains('gym') || cat.contains('deporte') || cat.contains('fitness')) return LucideIcons.dumbbell;
+    if (cat.contains('farmacia') || cat.contains('pharmacy')) return LucideIcons.pill;
     return LucideIcons.receipt;
   }
 }

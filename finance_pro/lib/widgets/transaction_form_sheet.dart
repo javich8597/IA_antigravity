@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme.dart';
@@ -6,6 +7,7 @@ import '../models/transaction_model.dart';
 import '../services/supabase_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/finance_provider.dart';
+import '../services/smart_categorizer.dart';
 
 class TransactionFormSheet extends ConsumerStatefulWidget {
   const TransactionFormSheet({super.key});
@@ -21,9 +23,14 @@ class _TransactionFormSheetState extends ConsumerState<TransactionFormSheet> {
   final _amountController = TextEditingController();
   String _category = 'General';
   DateTime _date = DateTime.now();
+  String _currency = 'EUR';
   bool _isLoading = false;
+  bool _isCategorizing = false;
   bool _isRecurring = false;
   String _frequency = 'monthly';
+  Timer? _debounce;
+
+  final _currencies = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'MXN'];
 
   final _frequencies = {
     'weekly': 'Semanal',
@@ -38,6 +45,25 @@ class _TransactionFormSheetState extends ConsumerState<TransactionFormSheet> {
     'Health', 'Entertainment', 'Shopping', 'Income', 'Savings', 'Investment'
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _descController.addListener(_onDescChanged);
+  }
+
+  void _onDescChanged() {
+    setState(() {}); // Update the button visibility
+    
+    // Auto-categorize magically when user stops typing for 800ms
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 800), () {
+      final text = _descController.text.trim();
+      if (text.isNotEmpty && text.length > 2) {
+        _suggestCategory(isAutomatic: true);
+      }
+    });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -48,6 +74,7 @@ class _TransactionFormSheetState extends ConsumerState<TransactionFormSheet> {
         'user_id': supabaseService.currentUser!.id,
         'description': _descController.text.trim(),
         'amount': double.parse(_amountController.text),
+        'currency': _currency,
         'type': _type,
         'category': _category,
         'frequency': _frequency,
@@ -73,6 +100,8 @@ class _TransactionFormSheetState extends ConsumerState<TransactionFormSheet> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
+    _descController.removeListener(_onDescChanged);
     _descController.dispose();
     _amountController.dispose();
     super.dispose();
@@ -144,20 +173,63 @@ class _TransactionFormSheetState extends ConsumerState<TransactionFormSheet> {
                   // Amount
                   _buildLabel('Cantidad'),
                   const SizedBox(height: 6),
-                  TextFormField(
-                    controller: _amountController,
-                    decoration: const InputDecoration(
-                      hintText: '0.00',
-                      prefixText: '€ ',
-                      prefixStyle: TextStyle(color: AppColors.textMuted),
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0x33000000),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.cardBorder),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _currency,
+                            dropdownColor: AppColors.cardBg,
+                            style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.w600),
+                            items: _currencies.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                            onChanged: (v) => setState(() => _currency = v!),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _amountController,
+                          decoration: const InputDecoration(
+                            hintText: '0.00',
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
 
                   // Category
-                  _buildLabel('Categoría'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildLabel('Categoría'),
+                      if (_descController.text.isNotEmpty)
+                        TextButton.icon(
+                          onPressed: _isCategorizing ? null : () => _suggestCategory(),
+                          icon: _isCategorizing
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(LucideIcons.sparkles, size: 14, color: Colors.amber),
+                          label: Text(
+                            _isCategorizing ? 'Pensando...' : 'Auto-Categorizar',
+                            style: const TextStyle(fontSize: 12, color: Colors.amber),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -371,5 +443,51 @@ class _TransactionFormSheetState extends ConsumerState<TransactionFormSheet> {
 
   Widget _buildLabel(String text) {
     return Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textMuted));
+  }
+
+  Future<void> _suggestCategory({bool isAutomatic = false}) async {
+    final desc = _descController.text.trim();
+    if (desc.isEmpty) return;
+    
+    // Don't override if user already manually changed it and this is an automatic trigger
+    if (isAutomatic && _category != 'General') return;
+
+    print('Auto-Categorizing: "$desc" (Automatic: $isAutomatic)');
+    setState(() => _isCategorizing = true);
+    try {
+      final user = supabaseService.currentUser;
+      
+      final categorizer = ref.read(smartCategorizerProvider);
+      final suggestion = await categorizer.suggestCategory(user?.id, desc);
+      
+      print('Suggestion applied: ${suggestion.category} via ${suggestion.source}');
+      
+      if (mounted) {
+        setState(() {
+          _category = suggestion.category;
+        });
+        
+        // Solo mostramos el SnackBar si el usuario explicitly pulsó el botón. 
+        // Si es automático, el cambio visual en el dropdown es suficiente (no intrusivo).
+        if (!isAutomatic) {
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+               content: Text('Sugerencia: ${suggestion.category} (${suggestion.source})'),
+               backgroundColor: AppColors.success,
+               duration: const Duration(seconds: 2),
+             )
+          );
+        }
+      }
+    } catch (e) {
+      print('Categorize Exception: $e');
+      if (mounted && !isAutomatic) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al auto-categorizar'), backgroundColor: AppColors.danger)
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCategorizing = false);
+    }
   }
 }

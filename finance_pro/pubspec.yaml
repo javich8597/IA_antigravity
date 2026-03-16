@@ -41,16 +41,25 @@ dependencies:
   fl_chart: ^1.2.0
   lucide_icons: ^0.257.0
 
+  # Sprint B: Offline-First
+  drift: ^2.22.1
+  sqlite3_flutter_libs: ^0.5.28
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  connectivity_plus: ^6.1.4
+  shared_preferences: ^2.5.3
+  flutter_secure_storage: ^9.2.4
+  local_auth: ^2.3.0
+  http: ^1.2.1
+  google_generative_ai: ^0.4.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  drift_dev: ^2.22.1
+  build_runner: ^2.4.15
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

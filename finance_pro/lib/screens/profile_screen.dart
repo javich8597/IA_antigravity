@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../providers/finance_provider.dart';
+import '../models/goal_model.dart';
 import '../services/supabase_service.dart';
 import '../theme.dart';
 
@@ -364,13 +365,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final initial = double.tryParse(_goalInitialController.text) ?? 0;
     if (name.isEmpty || target <= 0) return;
 
-    await ref.read(financeActionsProvider).addGoal({
-      'user_id': supabaseService.currentUser!.id,
-      'name': name,
-      'target_amount': target,
-      'current_amount': initial,
-      'initial_amount': initial,
-    });
+    final goal = GoalModel(
+      userId: supabaseAuth.currentUser!.id,
+      name: name,
+      targetAmount: target,
+      currentAmount: initial,
+      initialAmount: initial,
+    );
+    await ref.read(goalsProvider.notifier).add(goal);
 
     _goalNameController.clear();
     _goalTargetController.clear();
@@ -379,13 +381,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // ── Goal Card ───────────────────────────────────────────
-  Widget _buildGoalCard(Map<String, dynamic> goal, NumberFormat fmt, FinanceState state) {
-    final current = (goal['current_amount'] as num?)?.toDouble() ?? 0;
-    final target = (goal['target_amount'] as num?)?.toDouble() ?? 1;
-    final progress = (current / target).clamp(0.0, 1.0);
-    final isComplete = progress >= 1.0;
-    final remaining = target - current;
-    final isAddingFunds = _activeAddFundsId == goal['id'];
+  Widget _buildGoalCard(GoalModel goal, NumberFormat fmt, FinanceState state) {
+    final progress = goal.progressPercent;
+    final isComplete = goal.isCompleted;
+    final isAddingFunds = _activeAddFundsId == goal.id;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -405,14 +404,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(goal['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textMain)),
-                    Text('${fmt.format(current)} / ${fmt.format(target)}',
+                    Text(goal.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textMain)),
+                    Text('${fmt.format(goal.currentAmount)} / ${fmt.format(goal.targetAmount)}',
                       style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
                   ],
                 ),
               ),
               GestureDetector(
-                onTap: () => ref.read(financeActionsProvider).deleteGoal(goal['id']),
+                onTap: () {
+                  if (goal.id != null) ref.read(goalsProvider.notifier).delete(goal.id!);
+                },
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(color: AppColors.dangerBg, borderRadius: BorderRadius.circular(6)),
@@ -465,8 +466,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         GestureDetector(
                           onTap: () {
                             final amount = double.tryParse(_addFundsController.text) ?? 0;
-                            if (amount > 0) {
-                              ref.read(financeActionsProvider).updateGoal(goal['id'], current + amount);
+                            if (amount > 0 && goal.id != null) {
+                              ref.read(goalsProvider.notifier).updateAmount(goal.id!, goal.currentAmount + amount);
                               _addFundsController.clear();
                               setState(() => _activeAddFundsId = null);
                             }
@@ -485,7 +486,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ],
                     )
                   : GestureDetector(
-                      onTap: () => setState(() => _activeAddFundsId = goal['id']),
+                      onTap: () => setState(() => _activeAddFundsId = goal.id),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(

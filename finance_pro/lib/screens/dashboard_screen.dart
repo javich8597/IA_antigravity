@@ -5,9 +5,13 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../providers/finance_provider.dart';
 import '../models/transaction_model.dart';
+import '../models/recurring_transaction_model.dart';
 import '../services/supabase_service.dart';
+import '../services/budget_service.dart'; // Added this import
+import '../widgets/ant_expense_card.dart'; // Added this import
 import '../theme.dart';
 import '../widgets/edit_transaction_sheet.dart';
+
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -20,6 +24,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   String _filter = 'all';
   String _typeFilter = 'all';
   String _searchQuery = '';
+  bool _isHiddenMode = false;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +76,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       child: _buildDashboardCards(financeState, fmt),
                     ),
                   ),
+                  if (financeState.antExpenseReport != null)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                        child: AntExpenseCard(report: financeState.antExpenseReport!),
+                      ),
+                    ),
                   // Transaction list with filters
                   SliverToBoxAdapter(
                     child: Padding(
@@ -155,6 +167,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ],
           ),
           const Spacer(),
+          IconButton(
+            icon: Icon(_isHiddenMode ? LucideIcons.eyeOff : LucideIcons.eye, color: AppColors.textMuted),
+            onPressed: () => setState(() => _isHiddenMode = !_isHiddenMode),
+          ),
           OutlinedButton.icon(
             onPressed: () => supabaseService.signOut(),
             icon: const Icon(LucideIcons.logOut, size: 16),
@@ -173,31 +189,182 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   // ── Dashboard Cards ─────────────────────────────────────
   Widget _buildDashboardCards(FinanceState state, NumberFormat fmt) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 700;
-        final cards = [
-          _buildGlassCard(title: 'Balance Total', value: fmt.format(state.balance),
-            icon: LucideIcons.dollarSign, iconColor: AppColors.accentColor,
-            iconBgColor: Colors.white.withAlpha(13), isPrimary: true),
-          _buildGlassCard(title: 'Ingresos', value: fmt.format(state.totalIncome),
-            icon: LucideIcons.arrowUpCircle, iconColor: AppColors.success,
-            iconBgColor: AppColors.successBg),
-          _buildGlassCard(title: 'Gastos', value: fmt.format(state.totalExpenses),
-            icon: LucideIcons.arrowDownCircle, iconColor: AppColors.danger,
-            iconBgColor: AppColors.dangerBg),
-        ];
-
-        if (isWide) {
-          return Row(children: cards.map((c) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: c))).toList());
-        }
-        return Column(children: cards.map((c) => Padding(padding: const EdgeInsets.only(bottom: 12), child: c)).toList());
-      },
+    return Column(
+      children: [
+        // 1. Primary Row: Balance, Incomes, Expenses (Equal dimensions)
+        Row(
+          children: [
+            Expanded(
+              flex: 1,
+              child: _buildSmallGlassCard(
+                title: 'Balance',
+                value: fmt.format(state.balance),
+                icon: LucideIcons.wallet,
+                color: AppColors.accentColor,
+                isStale: state.hasStaleExchangeRate,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 1,
+              child: _buildSmallGlassCard(
+                title: 'Ingresos',
+                value: fmt.format(state.totalIncome),
+                icon: LucideIcons.trendingUp,
+                color: AppColors.success,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 1,
+              child: _buildSmallGlassCard(
+                title: 'Gastos',
+                value: fmt.format(state.totalExpenses),
+                icon: LucideIcons.trendingDown,
+                color: AppColors.danger,
+              ),
+            ),
+          ],
+        ),
+        
+        // 2. Budget Card (Status)
+        if (state.budgetReport != null) ...[
+          const SizedBox(height: 12),
+          _buildBudgetCard(state.budgetReport!, fmt),
+        ],
+      ],
     );
   }
 
-  Widget _buildGlassCard({required String title, required String value, required IconData icon,
-    required Color iconColor, required Color iconBgColor, bool isPrimary = false}) {
+  Widget _buildSmallGlassCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    bool isStale = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg.withAlpha(160),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 14, color: color),
+              if (isStale)
+                const Tooltip(
+                  message: 'Tasa desactualizada',
+                  child: Icon(LucideIcons.alertTriangle, size: 12, color: Colors.amber),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetCard(BudgetReport report, NumberFormat fmt) {
+    Color statusColor;
+    IconData statusIcon;
+    String statusTitle;
+    String mainValue;
+
+    switch (report.status) {
+      case BudgetStatus.good:
+        statusColor = AppColors.success;
+        statusIcon = LucideIcons.checkCircle2;
+        statusTitle = 'Disponible (Safe-to-Spend)';
+        mainValue = fmt.format(report.remaining);
+        break;
+      case BudgetStatus.warning:
+        statusColor = Colors.amber;
+        statusIcon = LucideIcons.alertTriangle;
+        statusTitle = 'Precaución (Proyección Alta)';
+        mainValue = fmt.format(report.remaining);
+        break;
+      case BudgetStatus.critical:
+        statusColor = AppColors.danger;
+        statusIcon = LucideIcons.alertOctagon;
+        if (report.remaining < 0) {
+          statusTitle = 'Presupuesto Superado';
+          mainValue = fmt.format(report.remaining);
+        } else {
+          statusTitle = 'Peligro Inminente';
+          mainValue = fmt.format(report.remaining);
+        }
+        break;
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: statusColor.withAlpha(15), 
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: statusColor.withAlpha(80)),
+            boxShadow: [BoxShadow(color: statusColor.withAlpha(15), blurRadius: 20)],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(statusTitle, style: TextStyle(color: statusColor, fontSize: 13, fontWeight: FontWeight.w600)),
+                  Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(shape: BoxShape.circle, color: statusColor.withAlpha(25)),
+                    child: Icon(statusIcon, size: 18, color: statusColor)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(mainValue, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: statusColor)),
+              const SizedBox(height: 12),
+              if (report.status == BudgetStatus.good)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: report.budgetAssigned > 0 ? (report.spent / report.budgetAssigned).clamp(0.0, 1.0) : 0,
+                    backgroundColor: Colors.white.withAlpha(20),
+                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                    minHeight: 6,
+                  ),
+                )
+              else
+                Row(
+                  children: [
+                    Icon(LucideIcons.trendingUp, size: 14, color: statusColor.withAlpha(200)),
+                    const SizedBox(width: 6),
+                    Text('Ritmo de Gasto: ${fmt.format(report.dailyPacing)}/día', 
+                      style: TextStyle(color: statusColor.withAlpha(200), fontSize: 12, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassCard({
+    required String title, required String value, required IconData icon,
+    required Color iconColor, required Color iconBgColor, bool isPrimary = false, bool isStale = false
+  }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -217,7 +384,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 14, fontWeight: FontWeight.w500)),
+                  Row(
+                    children: [
+                      Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 14, fontWeight: FontWeight.w500)),
+                      if (isStale) ...[
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'La tasa de cambio está desactualizada (>12h). Verifique su conexión.',
+                          child: const Icon(LucideIcons.alertTriangle, size: 14, color: Colors.amber),
+                        ),
+                      ],
+                    ],
+                  ),
                   Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(shape: BoxShape.circle, color: iconBgColor),
                     child: Icon(icon, size: 20, color: iconColor)),
                 ],
@@ -350,7 +528,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildTypeChip(String label, String value, [Color? activeColor]) {
     final isActive = _typeFilter == value;
-    final color = activeColor ?? AppColors.textMain;
     return GestureDetector(
       onTap: () => setState(() => _typeFilter = value),
       child: Container(
@@ -451,7 +628,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('${isExpense ? '-' : '+'}${fmt.format(tx.amount)}',
+                    Text('${isExpense ? '-' : '+'}${NumberFormat.simpleCurrency(name: tx.currency).format(tx.amount)}',
                       style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14,
                         color: isExpense ? AppColors.danger : AppColors.success)),
                     Text(DateFormat('dd MMM').format(tx.date),
@@ -467,7 +644,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // ── Recurring Transactions Panel ────────────────────────
-  Widget _buildRecurringPanel(List<Map<String, dynamic>> recs, NumberFormat fmt) {
+  Widget _buildRecurringPanel(List<RecurringTransactionModel> recs, NumberFormat fmt) {
     if (recs.isEmpty) return const SizedBox.shrink();
 
     return ClipRRect(
@@ -493,10 +670,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               const SizedBox(height: 12),
               ...recs.map((r) {
-                final isExp = r['type'] == 'expense';
-                final freq = _getFreqLabel(r['frequency'] ?? 'monthly');
+                final isExp = r.type == 'expense';
                 return Dismissible(
-                  key: Key(r['id']),
+                  key: Key(r.id ?? r.description),
                   direction: DismissDirection.endToStart,
                   background: Container(
                     alignment: Alignment.centerRight,
@@ -508,7 +684,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                     child: const Icon(LucideIcons.trash2, color: AppColors.danger),
                   ),
-                  onDismissed: (_) => ref.read(financeActionsProvider).deleteRecurringTransaction(r['id']),
+                  onDismissed: (_) {
+                    if (r.id != null) ref.read(recurringProvider.notifier).delete(r.id!);
+                  },
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Container(
@@ -524,16 +702,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(r['description'] ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textMain)),
-                                Text(r['category'] ?? '', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                Text(r.description, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textMain)),
+                                Text(r.category, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                               ],
                             ),
                           ),
                           Text(
-                            '${isExp ? '-' : '+'}${fmt.format((r['amount'] as num).toDouble())}',
-                            style: TextStyle(fontWeight: FontWeight.w600, color: isExp ? AppColors.danger : AppColors.success),
+                            '${isExp ? '-' : '+'}${NumberFormat.simpleCurrency(name: r.currency).format(r.amount)}',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14,
+                                color: isExp ? AppColors.danger : AppColors.success),
                           ),
-                          Text(' $freq', style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
                         ],
                       ),
                     ),

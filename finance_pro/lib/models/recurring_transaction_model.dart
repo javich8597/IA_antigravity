@@ -1,4 +1,4 @@
-class TransactionModel {
+class RecurringTransactionModel {
   final String? id;
   final String userId;
   final String description;
@@ -6,11 +6,12 @@ class TransactionModel {
   final String type; // 'income' or 'expense'
   final String category;
   final String currency;
-  final bool isAntExpense;
-  final DateTime date;
+  final String frequency; // 'weekly', 'monthly', 'quarterly', 'biannually', 'annually'
+  final DateTime? startDate;
+  final DateTime? nextDate;
   final DateTime? createdAt;
 
-  TransactionModel({
+  RecurringTransactionModel({
     this.id,
     required this.userId,
     required this.description,
@@ -18,13 +19,14 @@ class TransactionModel {
     required this.type,
     required this.category,
     this.currency = 'EUR',
-    this.isAntExpense = false,
-    required this.date,
+    this.frequency = 'monthly',
+    this.startDate,
+    this.nextDate,
     this.createdAt,
   });
 
-  factory TransactionModel.fromJson(Map<String, dynamic> json) {
-    return TransactionModel(
+  factory RecurringTransactionModel.fromJson(Map<String, dynamic> json) {
+    return RecurringTransactionModel(
       id: json['id'],
       userId: json['user_id'],
       description: json['description'] ?? '',
@@ -32,8 +34,9 @@ class TransactionModel {
       type: json['type'] ?? 'expense',
       category: json['category'] ?? 'General',
       currency: json['currency'] ?? 'EUR',
-      isAntExpense: json['is_ant_expense'] ?? false,
-      date: DateTime.parse(json['date']),
+      frequency: json['frequency'] ?? 'monthly',
+      startDate: json['start_date'] != null ? DateTime.parse(json['start_date']) : null,
+      nextDate: json['next_date'] != null ? DateTime.parse(json['next_date']) : null,
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
     );
   }
@@ -47,12 +50,13 @@ class TransactionModel {
       'type': type,
       'category': category,
       'currency': currency,
-      'is_ant_expense': isAntExpense,
-      'date': date.toIso8601String().split('T')[0],
+      'frequency': frequency,
+      if (startDate != null) 'start_date': startDate!.toIso8601String().split('T')[0],
+      if (nextDate != null) 'next_date': nextDate!.toIso8601String().split('T')[0],
     };
   }
 
-  TransactionModel copyWith({
+  RecurringTransactionModel copyWith({
     String? id,
     String? userId,
     String? description,
@@ -60,10 +64,11 @@ class TransactionModel {
     String? type,
     String? category,
     String? currency,
-    bool? isAntExpense,
-    DateTime? date,
+    String? frequency,
+    DateTime? startDate,
+    DateTime? nextDate,
   }) {
-    return TransactionModel(
+    return RecurringTransactionModel(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       description: description ?? this.description,
@@ -71,8 +76,9 @@ class TransactionModel {
       type: type ?? this.type,
       category: category ?? this.category,
       currency: currency ?? this.currency,
-      isAntExpense: isAntExpense ?? this.isAntExpense,
-      date: date ?? this.date,
+      frequency: frequency ?? this.frequency,
+      startDate: startDate ?? this.startDate,
+      nextDate: nextDate ?? this.nextDate,
       createdAt: createdAt,
     );
   }

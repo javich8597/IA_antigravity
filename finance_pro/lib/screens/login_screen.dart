@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
+import '../services/biometric_auth_service.dart';
+import '../theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,6 +19,36 @@ class _LoginScreenState extends State<LoginScreen> {
   
   bool _isLoading = false;
   bool _isLogin = true;
+  bool _biometricsAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometrics();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final available = await biometricService.isBiometricAvailable();
+    if (mounted) setState(() => _biometricsAvailable = available);
+  }
+
+  Future<void> _submitBiometric() async {
+    final authSuccess = await biometricService.authenticate();
+    if (authSuccess) {
+      // In a real scenario, you'd store the session/refresh token securely
+      // and restore it here. For MVP, we alert the user if they're not logged in Supabase yet.
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        // Already implicitly authenticated by Supabase
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Por favor, inicia sesión con correo y contraseña primero.')),
+          );
+        }
+      }
+    }
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -88,15 +120,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   const Icon(Icons.account_balance_wallet_rounded, size: 80, color: Color(0xFF6366F1)),
                   const SizedBox(height: 24),
                   Text(
-                    'FinancePro',
+                    'Think Better',
                     style: GoogleFonts.outfit(
                       fontSize: 40,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                   const Text(
-                    'Tu salud financiera, unificada.',
-                    style: TextStyle(color: Colors.white70),
+                    'Inteligencia y control financiero.',
+                    style: TextStyle(color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 48),
                   
@@ -141,6 +174,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text(_isLogin ? 'Iniciar Sesión' : 'Crear Cuenta', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
+                  
+                  if (_biometricsAvailable && _isLogin) ...[
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: _submitBiometric,
+                      icon: const Icon(Icons.fingerprint, size: 28),
+                      label: const Text('Ingresar con Biometría', style: TextStyle(fontSize: 16)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 56),
+                        foregroundColor: AppColors.accentColor,
+                        side: const BorderSide(color: AppColors.accentColor),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
                   
                   // Toggle Button
