@@ -69,6 +69,12 @@ class SupabaseDataService {
     await _supabase.from('recurring_transactions').delete().eq('id', id);
   }
 
+  Future<void> updateRecurringNextDate(String id, DateTime nextDate) async {
+    await _supabase.from('recurring_transactions').update({
+      'next_date': nextDate.toIso8601String().split('T')[0],
+    }).eq('id', id);
+  }
+
   // ── Goals ───────────────────────────────────────────────
   Future<List<GoalModel>> fetchGoals() async {
     final response = await _supabase

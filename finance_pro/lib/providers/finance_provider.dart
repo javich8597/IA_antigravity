@@ -7,12 +7,19 @@ import '../models/wealth_model.dart';
 import '../services/supabase_service.dart';
 import '../services/budget_service.dart';
 import '../services/ant_expense_detector.dart';
+import '../services/recurring_service.dart';
 import 'exchange_rate_provider.dart';
 
 // ── Transactions ──────────────────────────────────────────
 class TransactionsNotifier extends AsyncNotifier<List<TransactionModel>> {
   @override
   Future<List<TransactionModel>> build() async {
+    // Process any past-due recurring transactions before fetching
+    try {
+      await RecurringService.processRecurringTransactions();
+    } catch (e) {
+      print('RecurringService error (non-fatal): $e');
+    }
     return await supabaseData.fetchTransactions();
   }
 
